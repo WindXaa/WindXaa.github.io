@@ -20,39 +20,33 @@
     var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
   </script>
 
-  <meta name="description" content="一、前言前面我在看雪论坛上发表的两篇文章都讲解了第一代壳的加壳原理和脱壳原理">
+  <meta name="description" content="一、前言Android恶意应用的研究也是热点之一，近些年来，恶意应用的检测逐渐变成难点，以往常见的Android恶意应用的检测方式为：特征码、熵值、机器学习&#x2F;深度学习等，但随着防护技术的进一步发展，Android恶意应用的检测又进入一个新的难点。现有的恶意应用检测的难点包括：">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Android加壳与脱壳（2）——制作简易的第一代加壳机">
-<meta property="og:url" content="http://example.com/2022/12/04/Packer2/index.html">
+<meta property="og:title" content="Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗">
+<meta property="og:url" content="http://example.com/2022/12/04/Packer3/index.html">
 <meta property="og:site_name" content="欢迎来到安全后厨！">
-<meta property="og:description" content="一、前言前面我在看雪论坛上发表的两篇文章都讲解了第一代壳的加壳原理和脱壳原理">
+<meta property="og:description" content="一、前言Android恶意应用的研究也是热点之一，近些年来，恶意应用的检测逐渐变成难点，以往常见的Android恶意应用的检测方式为：特征码、熵值、机器学习&#x2F;深度学习等，但随着防护技术的进一步发展，Android恶意应用的检测又进入一个新的难点。现有的恶意应用检测的难点包括：">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/1.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/2.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/3.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/4.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/6.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/7.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/5.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/8.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/9.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/10.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/11.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/12.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/13.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/14.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/15.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/16.png">
-<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/17.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/1.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/2.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/3.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/4.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/5.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/7.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/6.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/9.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/10.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/11.png">
 <meta property="article:published_time" content="2022-12-03T16:00:00.000Z">
-<meta property="article:modified_time" content="2022-12-04T06:30:05.236Z">
+<meta property="article:modified_time" content="2022-12-04T06:59:07.754Z">
 <meta property="article:author" content="安全后厨团队">
 <meta property="article:tag" content="逆向技术">
 <meta property="article:tag" content="加壳与脱壳">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/1.png">
+<meta name="twitter:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/1.png">
 
-<link rel="canonical" href="http://example.com/2022/12/04/Packer2/">
+<link rel="canonical" href="http://example.com/2022/12/04/Packer3/">
 
 
 <script id="page-configurations">
@@ -65,7 +59,7 @@
   };
 </script>
 
-  <title>Android加壳与脱壳（2）——制作简易的第一代加壳机 | 欢迎来到安全后厨！</title>
+  <title>Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗 | 欢迎来到安全后厨！</title>
   
 
 
@@ -221,7 +215,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2022/12/04/Packer2/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/12/04/Packer3/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.png">
@@ -234,7 +228,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          Android加壳与脱壳（2）——制作简易的第一代加壳机
+          Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗
         </h1>
 
         <div class="post-meta">
@@ -245,7 +239,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2022-12-04 00:00:00 / 修改时间：14:30:05" itemprop="dateCreated datePublished" datetime="2022-12-04T00:00:00+08:00">2022-12-04</time>
+              <time title="创建时间：2022-12-04 00:00:00 / 修改时间：14:59:07" itemprop="dateCreated datePublished" datetime="2022-12-04T00:00:00+08:00">2022-12-04</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -275,66 +269,55 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>前面我在看雪论坛上发表的两篇文章都讲解了第一代壳的加壳原理和脱壳原理</p>
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>Android恶意应用的研究也是热点之一，近些年来，恶意应用的检测逐渐变成难点，以往常见的Android恶意应用的检测方式为：特征码、熵值、机器学习&#x2F;深度学习等，但随着防护技术的进一步发展，Android恶意应用的检测又进入一个新的难点。现有的恶意应用检测的难点包括：</p>
 <span id="more"></span>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（1）恶意行为具备定制性，比如很多的恶意应用针对不同的厂商有不同的定制策略，这样使得机器学习效果较差</span><br><span class="line">（2）恶意行为进行加壳，一些恶意样本采用vmp等加壳技术，将恶意行为进行隐藏</span><br><span class="line">（3）恶意行为难为难以触发溯源：一些恶意样本的触发具备一定的条件限制，比如采用云控触发的方式，在某个时间点进行触发</span><br><span class="line">（4）恶意行为变种较快：一些恶意应用变种较快</span><br></pre></td></tr></table></figure>
 
-<p><a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-271538.htm">Android加壳脱壳学习（1）——动态加载和类加载机制详解</a></p>
-<p>但是不少朋友仍然私信说有没有完整的项目,由于最近一直很忙，就没有从头实现一个简易的第一代壳加壳机，恰好最近看见看雪有大佬的一篇文章<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-273880.htm#msg_header_h2_2">Android 简单加密壳</a>,这篇文章很详细的讲解的整体加壳的原理和实现的思路，于是我进行了编译了源码，而其中发现签名有一点问题，并进行了小小优化，然后打包提供给大家使用</p>
-<p>源项目地址：<a target="_blank" rel="noopener" href="https://github.com/overturncat/reverse_android/tree/master/ApkPacker">https://github.com/overturncat/reverse_android/tree/master/ApkPacker</a></p>
-<p>修改后的项目地址：github后续上传</p>
-<h2 id="二、原理解析"><a href="#二、原理解析" class="headerlink" title="二、原理解析"></a>二、原理解析</h2><p>前面的两篇文章，我已经很详细的讲解了第一代壳动态加载的原理，不清楚的可以先去阅读前面的两篇文章，下面我主要分析上作者项目的大致流程和结构</p>
-<p><strong>首先我们回顾一下动态加载整体加壳的实现流程：</strong></p>
-<p>（1）代理启动：APK首先启动壳程序的Application，在壳程序的Application中的<code>attachBaseContext</code>和<code>onCreate</code>中依次完成源程序的解密和动态加载</p>
-<p>（2）动态加载：壳Application中要完成classLoader的替换，然后用替换后的classLoader去加载源程序dex，就可以执行正常的代码</p>
-<p><strong>流程很简单，具体设计的步骤：</strong></p>
-<p>（1）制作壳dex代理类：负责完成解密和动态加密，如果源dex没有加密则不需要解密</p>
-<p>DummyApplication:</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/1.png" alt="image-20221006194605283"></p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/2.png" alt="image-20221006194634799"></p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/3.png" alt="image-20221006194736932"></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">功能：完成类加载器替换和动态加载</span><br></pre></td></tr></table></figure>
+<p>今天我们关注恶意应用中的加壳类，加壳恶意应用是否能有效规避一些在线沙箱呢，上篇文章中我们借用开源代码实现了一个简易的一代壳加壳器，这里我们就趁热打铁来开展一次小实验，帮助大家了解恶意应用的对抗。</p>
+<h2 id="二、实验"><a href="#二、实验" class="headerlink" title="二、实验"></a>二、实验</h2><h3 id="1-实验准备"><a href="#1-实验准备" class="headerlink" title="1.实验准备"></a>1.实验准备</h3><p>一代壳自动加壳器ApkPacker（上篇文章我们已经给出，大家自取）</p>
+<p>恶意锁机样本hl.apk</p>
+<p>在线病毒沙箱：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">奇安信 威胁情报中心 https://sandbox.ti.qianxin.com/sandbox/page</span><br><span class="line">腾讯哈勃分析系统    https://habo.qq.com/</span><br></pre></td></tr></table></figure>
 
-<p>（2）使用apktool解压源程序</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/4.png" alt="image-20221006194931223"></p>
-<p>（3）修改源程序AndroidManifest中的Application为壳程序DummyApplication，即修改入口点</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/6.png" alt="image-20221006195130104"></p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/7.png" alt="image-20221006195205559"></p>
-<p>（4）将源程序dex拷贝到asset下，用于后面动态加载</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/5.png" alt="image-20221006195028375"></p>
-<p>（5）删除源程序的smali文件夹，替换为壳程序Application的smali代码</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/8.png" alt="image-20221006195348250"></p>
-<p>这样就将源程序的smali代码全部替换为壳程序代码，而源程序源码保存在asset下，就可以用壳程序代码去动态加载源程序，实现简易加壳</p>
-<p>（6）然后重打包签名即可完成</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/9.png" alt="image-20221006195557276"></p>
-<p>补充一下：原作者的ApkPacker更新了两个版本，第二个版本主要是考虑源APK本身含有代理类Application的问题，然后进行了解决，大家可以查看源码</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/10.png" alt="image-20221006195735199"></p>
-<h2 id="三、使用"><a href="#三、使用" class="headerlink" title="三、使用"></a>三、使用</h2><p>其实理解了动态加载和加壳的原理，制作一个简易的加壳器是十分简单的，这里我编译时发现作者的签名会报错，然后对签名替换了一下，还优化了路径并进行打包，方便大家使用，最后的项目文件：</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/11.png" alt="image-20221006200007695"></p>
-<p>sign是用于签名的，这里我进行了更改</p>
-<p>out是输出结果的文件夹，里面包含加壳后签名和未签名两类</p>
-<p>dummyDexSmli是壳程序，大家想制作自己的加壳器，这里自己可以参考作者的代码进行修改，比如还可以加解密等等</p>
-<p>使用：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sh ApkPacker.sh apk路径</span><br><span class="line">环境：jdk18</span><br></pre></td></tr></table></figure>
+<h3 id="2-实验过程"><a href="#2-实验过程" class="headerlink" title="2.实验过程"></a>2.实验过程</h3><h4 id="（1）恶意样本分析"><a href="#（1）恶意样本分析" class="headerlink" title="（1）恶意样本分析"></a>（1）恶意样本分析</h4><p>我们这里先静态查看一下我们的恶意样本，并动态运行一下查看实际效果</p>
+<p>静态分析：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/1.png" alt="image-20221008204446600"></p>
+<p>从静态层面可以看出十分符合锁机病毒的特征，感觉可能是三层锁机样本</p>
+<p>动态运行：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/2.png" alt="image-20221008204627425"></p>
+<p>不出任何意外，这里已经成功的锁机，这里我们在模拟器中运行，模拟器已经无法响应，这个原理我在看雪上有文章解释，大家可以去查看，这里大家不要在真机运行</p>
+<h4 id="（2）沙箱分析"><a href="#（2）沙箱分析" class="headerlink" title="（2）沙箱分析"></a>（2）沙箱分析</h4><p>经过前面的分析，我们已经很明显知道这是一个病毒锁机样本，下面我们用网上免费的两个沙箱来识别下</p>
+<p>腾讯：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/3.png" alt="image-20221008204839688"></p>
+<p>奇安信：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/4.png" alt="image-20221008204914824"></p>
+<p>可以看出无论是腾讯还是奇安信都很快识别出是病毒，其实这两个沙箱既可以静态分析，又有动态分析过程，那么沙箱到底是通过静态特征码还是动态行为去识别恶意样本，我们来具体实验下</p>
+<h4 id="（3）加壳"><a href="#（3）加壳" class="headerlink" title="（3）加壳"></a>（3）加壳</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sh ApkPacker.sh hl.apk</span><br></pre></td></tr></table></figure>
 
-<p>测试：</p>
-<p>这里我随便编写一个样本，然后使用GDA打开</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/12.png" alt="image-20221006201142551"></p>
-<p>可以发现源代码十分的简单，然后我们使用加壳工具</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/13.png" alt="image-20221006201308406"></p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/14.png" alt="image-20221006201340385"></p>
-<p>这里生成了加壳后的签名和未签名的样本，我们可以直接运行的是签名的样本，我们首先查看加壳的效果</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/15.png" alt="image-20221006201459821"></p>
-<p>大家是不是觉得和一些厂商的类型似曾相识呢，这里就实现了简易的第一代加壳器，当然我们可以看是否能运行</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/16.png" alt="image-20221006201631521"></p>
-<p>成功运行，说明是可以使用的</p>
-<h2 id="四、总结"><a href="#四、总结" class="headerlink" title="四、总结"></a>四、总结</h2><p>当然这种加壳方式是十分简单的，这里可以进行加密、采用不落地加载、再慢慢到抽取壳、dex2c&#x2F;dex-vmp，大家是不是发现加壳技术的发展也是一步步实现的，脱壳的方法我前面文章已经讲了，这里的加壳方法由于未加密，使用其他工具甚至可以直接查看</p>
-<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/17.png" alt="image-20221006201929012"></p>
-<p>使用jadx-gui还是可以查看到源码，这是因为GDA和jadx-gui的解析方式不一样，不过如果我们加密了，jadx-gui就无法很好查看了</p>
-<p>最后这里我是接原作者的ApkPacker给大家再一次梳理的简易加壳器的步骤，其实核心原理大家看我前面两篇文章就可以掌握</p>
-<p>加壳器存在知识星球：安全后厨，后面上传github</p>
-<p>后续会陆续讲解简易抽取壳的实现，简易dex-vmp的实现以及相应的脱壳方案，大家可以关注微信公众号：安全后厨</p>
-<h2 id="五、参考链接"><a href="#五、参考链接" class="headerlink" title="五、参考链接"></a>五、参考链接</h2><p><a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-273880.htm#msg_header_h2_1">https://bbs.pediy.com/thread-273880.htm#msg_header_h2_1</a></p>
-<p><a target="_blank" rel="noopener" href="https://github.com/overturncat/reverse_android/tree/master/ApkPacker">https://github.com/overturncat/reverse_android/tree/master/ApkPacker</a></p>
+<p>我们打开我们前面的一代壳加壳器，这里我重新编写的自己的壳代码，加壳步骤很简单，参考上篇文章，这里我们就直接看加壳后的样本</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/5.png" alt="image-20221008205505381"></p>
+<p>可以发现加壳成功，这里就是简单的一代壳，我们在模拟器中也是可以正常的运行的</p>
+<h4 id="（4）实验对比"><a href="#（4）实验对比" class="headerlink" title="（4）实验对比"></a>（4）实验对比</h4><p>我们将前面加壳前后的样本在沙箱中运行进行对比</p>
+<p>腾讯：</p>
+<p>加壳前：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/7.png" alt="image-20221008205753375"></p>
+<p><strong>加壳后</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/6.png" alt="image-20221008205721923"></p>
+<p>奇安信：</p>
+<p><strong>加壳前</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/8.png" alt="image-20221008205839831"></p>
+<p><strong>加壳后</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/9.png" alt="image-20221008205907961"></p>
+<p>综述我们可以推测这两个免费版沙箱是通过特征码进行检测，而且对apk解析不彻底，因为这里我们的源代码并未加密而是直接保存在样本中，但是沙箱好像还是没检测出来</p>
+<h4 id="（5）VirusTotal"><a href="#（5）VirusTotal" class="headerlink" title="（5）VirusTotal"></a>（5）VirusTotal</h4><p>我们这里因为用了很简单的加壳技术，也并未对源样本加密，所以应该是很容易检测出来的，我们使用ViruTotal来检测</p>
+<p>加壳前</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/10.png" alt="image-20221008210342685"></p>
+<p>加壳后</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer3/11.png" alt="image-20221008210405210"></p>
+<p>可以明显看见ViruTotal有很丰富的病毒引擎，还是可以检测出来，不过我们加壳后的分数变低说明是有效果的，如果我们使用更为复杂的加壳技术，分数一定会进一步增加</p>
+<p>当然不少朋友说，还可以检测病毒的行为特点，但是如果我们在病毒中隐藏行为，比如行为只在特定时间、特定设备、特定人群去触发，这样就难以通过行为来进行捕获</p>
+<p>从一定程度来说，加壳防护+行为隐藏+云端下发等进一步加大了当前恶意应用检测的难度</p>
+<h2 id="三、实验总结"><a href="#三、实验总结" class="headerlink" title="三、实验总结"></a>三、实验总结</h2><p>本文只是一次Android恶意应用检测的对抗实验，实验的技术十分简单，但却很明显的揭示了当前的恶意应用检测初步对抗，感兴趣朋友可以加入知识星球进一步探讨研究</p>
 
     </div>
 
@@ -350,7 +333,7 @@
   </li>
   <li class="post-copyright-link">
     <strong>本文链接：</strong>
-    <a href="http://example.com/2022/12/04/Packer2/" title="Android加壳与脱壳（2）——制作简易的第一代加壳机">http://example.com/2022/12/04/Packer2/</a>
+    <a href="http://example.com/2022/12/04/Packer3/" title="Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗">http://example.com/2022/12/04/Packer3/</a>
   </li>
   <li class="post-copyright-license">
     <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
@@ -371,10 +354,13 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/2022/12/04/Packer3/" rel="prev" title="Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗">
-      <i class="fa fa-chevron-left"></i> Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗
+    <a href="/2022/12/04/Packer4/" rel="prev" title="Android加壳与脱壳（4）—— 一代壳脱壳工具集">
+      <i class="fa fa-chevron-left"></i> Android加壳与脱壳（4）—— 一代壳脱壳工具集
     </a></div>
-      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/04/Packer2/" rel="next" title="Android加壳与脱壳（2）——制作简易的第一代加壳机">
+      Android加壳与脱壳（2）——制作简易的第一代加壳机 <i class="fa fa-chevron-right"></i>
+    </a></div>
     </div>
       </footer>
     
@@ -433,7 +419,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">二、原理解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E4%BD%BF%E7%94%A8"><span class="nav-number">3.</span> <span class="nav-text">三、使用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-number">4.</span> <span class="nav-text">四、总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%8F%82%E8%80%83%E9%93%BE%E6%8E%A5"><span class="nav-number">5.</span> <span class="nav-text">五、参考链接</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%AE%9E%E9%AA%8C"><span class="nav-number">2.</span> <span class="nav-text">二、实验</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%AE%9E%E9%AA%8C%E5%87%86%E5%A4%87"><span class="nav-number">2.1.</span> <span class="nav-text">1.实验准备</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%AE%9E%E9%AA%8C%E8%BF%87%E7%A8%8B"><span class="nav-number">2.2.</span> <span class="nav-text">2.实验过程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%81%B6%E6%84%8F%E6%A0%B7%E6%9C%AC%E5%88%86%E6%9E%90"><span class="nav-number">2.2.1.</span> <span class="nav-text">（1）恶意样本分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%B2%99%E7%AE%B1%E5%88%86%E6%9E%90"><span class="nav-number">2.2.2.</span> <span class="nav-text">（2）沙箱分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%8A%A0%E5%A3%B3"><span class="nav-number">2.2.3.</span> <span class="nav-text">（3）加壳</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E5%AE%9E%E9%AA%8C%E5%AF%B9%E6%AF%94"><span class="nav-number">2.2.4.</span> <span class="nav-text">（4）实验对比</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%885%EF%BC%89VirusTotal"><span class="nav-number">2.2.5.</span> <span class="nav-text">（5）VirusTotal</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">三、实验总结</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
