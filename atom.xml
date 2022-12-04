@@ -6,7 +6,7 @@
   <link href="http://example.com/atom.xml" rel="self"/>
   
   <link href="http://example.com/"/>
-  <updated>2022-12-03T11:19:23.223Z</updated>
+  <updated>2022-12-04T06:30:05.236Z</updated>
   <id>http://example.com/</id>
   
   <author>
@@ -17,9 +17,32 @@
   <generator uri="https://hexo.io/">Hexo</generator>
   
   <entry>
+    <title>Android加壳与脱壳（2）——制作简易的第一代加壳机</title>
+    <link href="http://example.com/2022/12/04/Packer2/"/>
+    <id>http://example.com/2022/12/04/Packer2/</id>
+    <published>2022-12-03T16:00:00.000Z</published>
+    <updated>2022-12-04T06:30:05.236Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>前面我在看雪论坛上发表的两篇文章都讲解了第一代壳的加壳原理和脱壳原理</p><span id="more"></span><p><a href="https://bbs.pediy.com/thread-271538.htm">Android加壳脱壳学习（1）——动态加载和类加载机制详解</a></p><p>但是不少朋友仍然私信说有没有完整的项目,由于最近一直很忙，就没有从头实现一个简易的第一代壳加壳机，恰好最近看见看雪有大佬的一篇文章<a href="https://bbs.pediy.com/thread-273880.htm#msg_header_h2_2">Android 简单加密壳</a>,这篇文章很详细的讲解的整体加壳的原理和实现的思路，于是我进行了编译了源码，而其中发现签名有一点问题，并进行了小小优化，然后打包提供给大家使用</p><p>源项目地址：<a href="https://github.com/overturncat/reverse_android/tree/master/ApkPacker">https://github.com/overturncat/reverse_android/tree/master/ApkPacker</a></p><p>修改后的项目地址：github后续上传</p><h2 id="二、原理解析"><a href="#二、原理解析" class="headerlink" title="二、原理解析"></a>二、原理解析</h2><p>前面的两篇文章，我已经很详细的讲解了第一代壳动态加载的原理，不清楚的可以先去阅读前面的两篇文章，下面我主要分析上作者项目的大致流程和结构</p><p><strong>首先我们回顾一下动态加载整体加壳的实现流程：</strong></p><p>（1）代理启动：APK首先启动壳程序的Application，在壳程序的Application中的<code>attachBaseContext</code>和<code>onCreate</code>中依次完成源程序的解密和动态加载</p><p>（2）动态加载：壳Application中要完成classLoader的替换，然后用替换后的classLoader去加载源程序dex，就可以执行正常的代码</p><p><strong>流程很简单，具体设计的步骤：</strong></p><p>（1）制作壳dex代理类：负责完成解密和动态加密，如果源dex没有加密则不需要解密</p><p>DummyApplication:</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/1.png" alt="image-20221006194605283"></p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/2.png" alt="image-20221006194634799"></p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/3.png" alt="image-20221006194736932"></p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">功能：完成类加载器替换和动态加载</span><br></pre></td></tr></table></figure><p>（2）使用apktool解压源程序</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/4.png" alt="image-20221006194931223"></p><p>（3）修改源程序AndroidManifest中的Application为壳程序DummyApplication，即修改入口点</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/6.png" alt="image-20221006195130104"></p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/7.png" alt="image-20221006195205559"></p><p>（4）将源程序dex拷贝到asset下，用于后面动态加载</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/5.png" alt="image-20221006195028375"></p><p>（5）删除源程序的smali文件夹，替换为壳程序Application的smali代码</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/8.png" alt="image-20221006195348250"></p><p>这样就将源程序的smali代码全部替换为壳程序代码，而源程序源码保存在asset下，就可以用壳程序代码去动态加载源程序，实现简易加壳</p><p>（6）然后重打包签名即可完成</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/9.png" alt="image-20221006195557276"></p><p>补充一下：原作者的ApkPacker更新了两个版本，第二个版本主要是考虑源APK本身含有代理类Application的问题，然后进行了解决，大家可以查看源码</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/10.png" alt="image-20221006195735199"></p><h2 id="三、使用"><a href="#三、使用" class="headerlink" title="三、使用"></a>三、使用</h2><p>其实理解了动态加载和加壳的原理，制作一个简易的加壳器是十分简单的，这里我编译时发现作者的签名会报错，然后对签名替换了一下，还优化了路径并进行打包，方便大家使用，最后的项目文件：</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/11.png" alt="image-20221006200007695"></p><p>sign是用于签名的，这里我进行了更改</p><p>out是输出结果的文件夹，里面包含加壳后签名和未签名两类</p><p>dummyDexSmli是壳程序，大家想制作自己的加壳器，这里自己可以参考作者的代码进行修改，比如还可以加解密等等</p><p>使用：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sh ApkPacker.sh apk路径</span><br><span class="line">环境：jdk18</span><br></pre></td></tr></table></figure><p>测试：</p><p>这里我随便编写一个样本，然后使用GDA打开</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/12.png" alt="image-20221006201142551"></p><p>可以发现源代码十分的简单，然后我们使用加壳工具</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/13.png" alt="image-20221006201308406"></p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/14.png" alt="image-20221006201340385"></p><p>这里生成了加壳后的签名和未签名的样本，我们可以直接运行的是签名的样本，我们首先查看加壳的效果</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/15.png" alt="image-20221006201459821"></p><p>大家是不是觉得和一些厂商的类型似曾相识呢，这里就实现了简易的第一代加壳器，当然我们可以看是否能运行</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/16.png" alt="image-20221006201631521"></p><p>成功运行，说明是可以使用的</p><h2 id="四、总结"><a href="#四、总结" class="headerlink" title="四、总结"></a>四、总结</h2><p>当然这种加壳方式是十分简单的，这里可以进行加密、采用不落地加载、再慢慢到抽取壳、dex2c&#x2F;dex-vmp，大家是不是发现加壳技术的发展也是一步步实现的，脱壳的方法我前面文章已经讲了，这里的加壳方法由于未加密，使用其他工具甚至可以直接查看</p><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer2/17.png" alt="image-20221006201929012"></p><p>使用jadx-gui还是可以查看到源码，这是因为GDA和jadx-gui的解析方式不一样，不过如果我们加密了，jadx-gui就无法很好查看了</p><p>最后这里我是接原作者的ApkPacker给大家再一次梳理的简易加壳器的步骤，其实核心原理大家看我前面两篇文章就可以掌握</p><p>加壳器存在知识星球：安全后厨，后面上传github</p><p>后续会陆续讲解简易抽取壳的实现，简易dex-vmp的实现以及相应的脱壳方案，大家可以关注微信公众号：安全后厨</p><h2 id="五、参考链接"><a href="#五、参考链接" class="headerlink" title="五、参考链接"></a>五、参考链接</h2><p><a href="https://bbs.pediy.com/thread-273880.htm#msg_header_h2_1">https://bbs.pediy.com/thread-273880.htm#msg_header_h2_1</a></p><p><a href="https://github.com/overturncat/reverse_android/tree/master/ApkPacker">https://github.com/overturncat/reverse_android/tree/master/ApkPacker</a></p>]]></content>
+    
+    
+    <summary type="html">&lt;h2 id=&quot;一、前言&quot;&gt;&lt;a href=&quot;#一、前言&quot; class=&quot;headerlink&quot; title=&quot;一、前言&quot;&gt;&lt;/a&gt;一、前言&lt;/h2&gt;&lt;p&gt;前面我在看雪论坛上发表的两篇文章都讲解了第一代壳的加壳原理和脱壳原理&lt;/p&gt;</summary>
+    
+    
+    
+    <category term="Android加壳与脱壳" scheme="http://example.com/categories/Android%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/"/>
+    
+    
+    <category term="逆向技术" scheme="http://example.com/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/"/>
+    
+    <category term="加壳与脱壳" scheme="http://example.com/tags/%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/"/>
+    
+  </entry>
+  
+  <entry>
     <title>Android加壳与脱壳（1）——深入理解类加载器和动态加载</title>
-    <link href="http://example.com/2022/12/03/%E7%AC%AC%E4%BA%8C%E7%AF%87/"/>
-    <id>http://example.com/2022/12/03/%E7%AC%AC%E4%BA%8C%E7%AF%87/</id>
+    <link href="http://example.com/2022/12/03/Packer1/"/>
+    <id>http://example.com/2022/12/03/Packer1/</id>
     <published>2022-12-03T06:55:19.000Z</published>
     <updated>2022-12-03T11:19:23.223Z</updated>
     
