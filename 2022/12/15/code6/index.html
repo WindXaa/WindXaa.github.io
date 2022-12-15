@@ -20,19 +20,34 @@
     var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
   </script>
 
-  <meta name="description" content="资源栏介绍前言安全后厨团队整理并收集了移动安全相关的资源和文章供大家学习，本文主要分为两个板块：资源索引和文章目录。 资源索引是定期收集的工具，并整理上传到微信公众号后台，需要的朋友可以输入索引词进行获取。 文章目录资源是整理了团队的文章，给大家提供索引，方便大家进行查阅。 资源索引词论文索引词： 123恶意应用加壳脱壳漏洞挖掘  Android ROM关键词： 1Android源码  Andro">
-<meta property="og:type" content="website">
-<meta property="og:title" content="资源">
-<meta property="og:url" content="http://example.com/resources/index.html">
+  <meta name="description" content="1.背景作者：退役debug选手 环境 AOSP 10 当我们经常编译AOSP后有可能需要全量更新我们的修改，全量更新就意味着之前我们手机上面安装的软件都清空了，等同于回复出厂设置，那么我们可不可以提前放入一些我们自己需要用的APP呢，刷机之后APP就不用重复安装了。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android源码定制（6）——Android10无源码内置apk到系统">
+<meta property="og:url" content="http://example.com/2022/12/15/code6/index.html">
 <meta property="og:site_name" content="欢迎来到安全后厨！">
-<meta property="og:description" content="资源栏介绍前言安全后厨团队整理并收集了移动安全相关的资源和文章供大家学习，本文主要分为两个板块：资源索引和文章目录。 资源索引是定期收集的工具，并整理上传到微信公众号后台，需要的朋友可以输入索引词进行获取。 文章目录资源是整理了团队的文章，给大家提供索引，方便大家进行查阅。 资源索引词论文索引词： 123恶意应用加壳脱壳漏洞挖掘  Android ROM关键词： 1Android源码  Andro">
+<meta property="og:description" content="1.背景作者：退役debug选手 环境 AOSP 10 当我们经常编译AOSP后有可能需要全量更新我们的修改，全量更新就意味着之前我们手机上面安装的软件都清空了，等同于回复出厂设置，那么我们可不可以提前放入一些我们自己需要用的APP呢，刷机之后APP就不用重复安装了。">
 <meta property="og:locale" content="zh_CN">
-<meta property="article:published_time" content="2022-12-06T14:27:22.000Z">
-<meta property="article:modified_time" content="2022-12-06T14:59:10.877Z">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209105639.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209105800.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209110011.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209110118.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209110753.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209113113.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209112953.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209122537.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209123246.jpg">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/2022-12-09_03-03.png">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/blog-apk/2022-12-09_03-30.png">
+<meta property="og:image" content="http://sob-ak.test.upcdn.net/2022-12-09_04-16.png">
+<meta property="article:published_time" content="2022-12-15T06:42:19.000Z">
+<meta property="article:modified_time" content="2022-12-15T06:45:58.301Z">
 <meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="逆向技术">
+<meta property="article:tag" content="内置apk">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209105639.jpg">
 
-<link rel="canonical" href="http://example.com/resources/">
+<link rel="canonical" href="http://example.com/2022/12/15/code6/">
 
 
 <script id="page-configurations">
@@ -40,13 +55,12 @@
   CONFIG.page = {
     sidebar: "",
     isHome : false,
-    isPost : false,
+    isPost : true,
     lang   : 'zh-CN'
   };
 </script>
 
-  <title>资源 | 欢迎来到安全后厨！
-</title>
+  <title>Android源码定制（6）——Android10无源码内置apk到系统 | 欢迎来到安全后厨！</title>
   
 
 
@@ -194,83 +208,164 @@
       <div class="main-inner">
         <div class="content-wrap">
           
-  
-  
 
-          <div class="content page posts-expand">
+          <div class="content post posts-expand">
             
 
     
-    
-    
-    <div class="post-block" lang="zh-CN">
-      <header class="post-header">
-
-<h1 class="post-title" itemprop="name headline">资源
-</h1>
-
-<div class="post-meta">
   
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/12/15/code6/">
 
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android源码定制（6）——Android10无源码内置apk到系统
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-12-15 14:42:19 / 修改时间：14:45:58" itemprop="dateCreated datePublished" datetime="2022-12-15T14:42:19+08:00">2022-12-15</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android%E6%BA%90%E7%A0%81%E5%AE%9A%E5%88%B6/" itemprop="url" rel="index"><span itemprop="name">Android源码定制</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="1-背景"><a href="#1-背景" class="headerlink" title="1.背景"></a>1.背景</h2><p>作者：退役debug选手</p>
+<p>环境 AOSP 10</p>
+<p>当我们经常编译AOSP后有可能需要全量更新我们的修改，全量更新就意味着之前我们手机上面安装的软件都清空了，等同于回复出厂设置，那么我们可不可以提前放入一些我们自己需要用的APP呢，刷机之后APP就不用重复安装了。</p>
+<span id="more"></span>
+
+
+<h2 id="2-无源码内置apk到系统"><a href="#2-无源码内置apk到系统" class="headerlink" title="2.无源码内置apk到系统"></a>2.无源码内置apk到系统</h2><p>这一次我们先做一个无源码无so库的APP到系统中。</p>
+<p>有so库的下一篇实践。</p>
+<h3 id="2-1准备工作"><a href="#2-1准备工作" class="headerlink" title="2.1准备工作"></a>2.1准备工作</h3><p>准备好apk安装包，这个包也可以是自己的，也有可能是客户给的，只给成品不给源码。这是前提。</p>
+<p>比如我现在就编写了一个简单的无so的apk。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209105639.jpg"></p>
+<p>App名字就是内置App。<br>编译成功之后先安装到手机看看运行情况，是否会崩溃等等检查。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209105800.jpg"></p>
+<p>能看到我们的log正常输入，且App没有崩溃。<br>我们把这个apk复制到这里：<br>在源码目录下packages&#x2F;apps下创建一个目录，这个目录就是我们存放apk的目录。<br>创建MyApp目录，保存上面打包出来的apk文件，命名MyApp.apk。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209110011.jpg"></p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209110118.jpg"></p>
+<p>创建Android.mk文件，文件内容是这样的。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">LOCAL_PATH:= $(call my-dir)</span><br><span class="line"></span><br><span class="line">include $(CLEAR_VARS)</span><br><span class="line">LOCAL_MODULE := MyApp</span><br><span class="line">LOCAL_MODULE_TAGS := optional</span><br><span class="line">LOCAL_SRC_FILES := $(LOCAL_MODULE).apk</span><br><span class="line">LOCAL_MODULE_CLASS := APPS</span><br><span class="line">LOCAL_MODULE_SUFFIX := $(COMMON_ANDROID_PACKAGE_SUFFIX)</span><br><span class="line">LOCAL_CERTIFICATE := PRESIGNED</span><br><span class="line">include $(BUILD_PREBUILT)</span><br></pre></td></tr></table></figure>
+
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209110753.jpg"></p>
+<p>当我们加入到这个地方之后，是可以进行编译，但是无法加入到系统编译中，还需要修改另一个地方配置。</p>
+<p>这里有很多App，我们在build中搜索他们是怎么配置的。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209113113.jpg"></p>
+<p>比如相机，我们找到了build&#x2F;make&#x2F;target&#x2F;product&#x2F;handleld_product.mk中有相机的配置，通常这种文件夹配置后面会有一个 \反斜杠。我们模仿他们去配置就行。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209112953.jpg"></p>
+<p>加入我们的apk的目录。</p>
+<h3 id="2-2编译刷机"><a href="#2-2编译刷机" class="headerlink" title="2.2编译刷机"></a>2.2编译刷机</h3><p>上面配置完成之后，我们开始编译。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209122537.jpg"></p>
+<p>接下里是错误的操作，make -j4后我snod重新生成system.img，然后就刷入手机了。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/QQ%E6%88%AA%E5%9B%BE20221209123246.jpg"></p>
+<p>这个时候手机重启，直接显示分区坏了。。。</p>
+<p>具体原因不明，如果知道的大佬，还望告知。</p>
+<p>怎么抢救呢？刷入同代号的官方刷机包就行。这个我很早就准备好了，因为之前已经遇到过这个情况n次，我现在内心毫无波澜了。</p>
+<p>找到之前的刷机包，执行flash-all.sh就行了。<br>抢救回来之后，当然是继续刷，我们还没验证是否内置成功。<br>这一次就是全量刷入。</p>
+<p>进入源码目录</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">adb reboot bootloader</span><br><span class="line"><span class="meta prompt_">#</span><span class="language-bash">重启手机到bl模式</span></span><br><span class="line">fastboot devices</span><br><span class="line"><span class="meta prompt_">#</span><span class="language-bash">看看设备是否链接了，有xxfaf devices就是连接了。开始刷机。</span></span><br><span class="line">fastboot flashall -w</span><br></pre></td></tr></table></figure>
+
+<p>刷机完成正常开机，查看APP是否内置成功。</p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/2022-12-09_03-03.png"></p>
+<p><img src="http://sob-ak.test.upcdn.net/blog-apk/2022-12-09_03-30.png"></p>
+<p>这里没有卸载选项的了</p>
+<p>打开App</p>
+<p><img src="http://sob-ak.test.upcdn.net/2022-12-09_04-16.png"></p>
+<p>成功了！</p>
+<h2 id="3-总结"><a href="#3-总结" class="headerlink" title="3.总结"></a>3.总结</h2><p>本文主要介绍了如何通过源码定制内置APP到Android系统，更多移动安全知识欢迎关注安全后厨！</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://example.com/2022/12/15/code6/" title="Android源码定制（6）——Android10无源码内置apk到系统">http://example.com/2022/12/15/code6/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
 </div>
 
-</header>
 
-      
-      
-      
-      <div class="post-body">
-          <h1 id="资源栏介绍"><a href="#资源栏介绍" class="headerlink" title="资源栏介绍"></a>资源栏介绍</h1><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>安全后厨团队整理并收集了移动安全相关的资源和文章供大家学习，本文主要分为两个板块：资源索引和文章目录。</p>
-<p>资源索引是定期收集的工具，并整理上传到微信公众号后台，需要的朋友可以输入索引词进行获取。</p>
-<p>文章目录资源是整理了团队的文章，给大家提供索引，方便大家进行查阅。</p>
-<h2 id="资源索引词"><a href="#资源索引词" class="headerlink" title="资源索引词"></a>资源索引词</h2><p><strong>论文索引词：</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">恶意应用</span><br><span class="line">加壳脱壳</span><br><span class="line">漏洞挖掘</span><br></pre></td></tr></table></figure>
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/" rel="tag"># 逆向技术</a>
+              <a href="/tags/%E5%86%85%E7%BD%AEapk/" rel="tag"># 内置apk</a>
+          </div>
 
-<p><strong>Android ROM关键词：</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Android源码</span><br></pre></td></tr></table></figure>
+        
 
-<p><strong>Android安全工具关键词：</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">脱壳工具集</span><br><span class="line">光速模拟器</span><br><span class="line">定制化root</span><br><span class="line">nexus5镜像</span><br><span class="line">IDA</span><br><span class="line">逆向工具集</span><br><span class="line">吾爱win7</span><br></pre></td></tr></table></figure>
 
-<p><strong>Android逆向脚本关键词:</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Ollvm脚本</span><br></pre></td></tr></table></figure>
-
-<p><strong>Android安全沙龙会议关键词：</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">先知社区</span><br><span class="line">黑帽大会USA</span><br><span class="line">2022看雪SDC</span><br></pre></td></tr></table></figure>
-
-<p><strong>Android安全书籍关键词：</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">安全防护书籍</span><br><span class="line">ELF资料</span><br><span class="line">汇编资料</span><br><span class="line">安卓架构</span><br></pre></td></tr></table></figure>
-
-<p>资源获取途径，微信公众号回复关键词即可获取。</p>
-<h2 id="博客目录检索"><a href="#博客目录检索" class="headerlink" title="博客目录检索"></a>博客目录检索</h2><h3 id="1-Android加壳与脱壳系列"><a href="#1-Android加壳与脱壳系列" class="headerlink" title="1.Android加壳与脱壳系列"></a>1.Android加壳与脱壳系列</h3><p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/03/Packer1/">Android加壳与脱壳（1）——深入理解类加载器和动态加载</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/Packer2/">Android加壳与脱壳（2）——制作简易的第一代加壳机</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/Packer3/">Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/Packer4/">Android加壳与脱壳（4）—— 一代壳脱壳工具集</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/Packer5/">Android加壳与脱壳（5）——整体加壳原理和脱壳技巧详解</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/Packer6/">Android加壳与脱壳（6）——各类加壳器与原理分析推荐</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/Packer7/">Android加壳与脱壳（7）——Fdex2源码解析和frida版本实现</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/Packer8/">Android加壳与脱壳（8）——Youpk脱壳机源码分析</a></p>
-<p>未完待续…….</p>
-<h3 id="2-Android源码定制系列"><a href="#2-Android源码定制系列" class="headerlink" title="2.Android源码定制系列"></a>2.Android源码定制系列</h3><p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/code1/">Android源码定制（1）——Android6.0源码编译</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/code2/">Android源码定制（2）——Android10.0的编译流程</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/code3/">Android源码定制（3）——Xposed源码编译详解</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/04/code4/">Android源码定制（4）——Xposed源码定制</a></p>
-<p><a target="_blank" rel="noopener" href="https://security-kitchen.com/2022/12/05/code5/">Android源码定制（5）——root指纹定制与抹除</a></p>
-<p>未完待续…….</p>
-<p>（博客网站主要为方便大家阅读，后续会将文章逐一上传）</p>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>安全后厨团队是由各高校硕博和大厂从业者组建的团队，旨在交流移动安全领域知识，以及学术研讨活动，欢迎各从业人员、学生、移动安全爱好者一起加入学习。</p>
-<p>详细可以扫描左侧公众号二维码，加入交流圈一起学习交流！</p>
-
-      </div>
-      
-      
-      
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/05/code5/" rel="prev" title="Android源码定制（5）——root指纹定制与抹除">
+      <i class="fa fa-chevron-left"></i> Android源码定制（5）——root指纹定制与抹除
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/15/bug1/" rel="next" title="Android App漏洞之战（1）——drozer+Inspeckage(xposed)+MobSF">
+      Android App漏洞之战（1）——drozer+Inspeckage(xposed)+MobSF <i class="fa fa-chevron-right"></i>
+    </a></div>
     </div>
+      </footer>
     
+  </article>
+  
+  
+  
 
-    
-    
-    
 
 
           </div>
@@ -321,7 +416,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%B5%84%E6%BA%90%E6%A0%8F%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">资源栏介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%B5%84%E6%BA%90%E7%B4%A2%E5%BC%95%E8%AF%8D"><span class="nav-number">1.2.</span> <span class="nav-text">资源索引词</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%9A%E5%AE%A2%E7%9B%AE%E5%BD%95%E6%A3%80%E7%B4%A2"><span class="nav-number">1.3.</span> <span class="nav-text">博客目录检索</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Android%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3%E7%B3%BB%E5%88%97"><span class="nav-number">1.3.1.</span> <span class="nav-text">1.Android加壳与脱壳系列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Android%E6%BA%90%E7%A0%81%E5%AE%9A%E5%88%B6%E7%B3%BB%E5%88%97"><span class="nav-number">1.3.2.</span> <span class="nav-text">2.Android源码定制系列</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">1.4.</span> <span class="nav-text">总结</span></a></li></ol></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">1.背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%97%A0%E6%BA%90%E7%A0%81%E5%86%85%E7%BD%AEapk%E5%88%B0%E7%B3%BB%E7%BB%9F"><span class="nav-number">2.</span> <span class="nav-text">2.无源码内置apk到系统</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C"><span class="nav-number">2.1.</span> <span class="nav-text">2.1准备工作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2%E7%BC%96%E8%AF%91%E5%88%B7%E6%9C%BA"><span class="nav-number">2.2.</span> <span class="nav-text">2.2编译刷机</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">3.总结</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
