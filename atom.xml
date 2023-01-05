@@ -6,7 +6,7 @@
   <link href="http://example.com/atom.xml" rel="self"/>
   
   <link href="http://example.com/"/>
-  <updated>2022-12-15T07:05:33.522Z</updated>
+  <updated>2023-01-05T12:50:29.126Z</updated>
   <id>http://example.com/</id>
   
   <author>
@@ -15,6 +15,30 @@
   </author>
   
   <generator uri="https://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>Android加壳与脱壳（9）—— 一次manifest文件修复</title>
+    <link href="http://example.com/2023/01/05/Packer9/"/>
+    <id>http://example.com/2023/01/05/Packer9/</id>
+    <published>2023-01-04T16:00:00.000Z</published>
+    <updated>2023-01-05T12:50:29.126Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="1-前言"><a href="#1-前言" class="headerlink" title="1.前言"></a>1.前言</h2><ul><li>某个manifest文件发现jadx和apktool均不能反编译，用jadx打开是这样的<span id="more"></span></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled.png" alt="Untitled"></p><ul><li>仔细一看说的应该是字符串的起始位置不对，应该是0x654,实际上是0x650</li><li>但确实不太了解manifest的结构于是搜了一下相关的解决办法但都没法解决这个manifest文件的问题，于是乎决定自己把manifest的格式看一遍</li><li>这里参考的是**<a href="https://bbs.pediy.com/user-home-444052.htm">MindMac</a>** 大佬写的文章中的格式，贴一个大佬的图</li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%201.png" alt="Untitled"></p><ul><li>从头开始配合 010 editor提供的模板进行分析</li></ul><h2 id="2-分析"><a href="#2-分析" class="headerlink" title="2.分析"></a>2.分析</h2><h3 id="2-1-魔术和文件头"><a href="#2-1-魔术和文件头" class="headerlink" title="2.1 魔术和文件头"></a>2.1 魔术和文件头</h3><ul><li>检验了一下都是没问题的</li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%202.png" alt="Untitled"></p><h3 id="2-2-stringChunk"><a href="#2-2-stringChunk" class="headerlink" title="2.2 stringChunk"></a>2.2 stringChunk</h3><ul><li><strong>String Chunk 的标识，值为 0x001C0001 没问题</strong></li><li>String Chunk的大小：0x6b38 <strong>没问题</strong></li><li>string chunk内容区间 (0x08开始  加上面的大小): 0x08 -  6b40 <strong>没问题</strong></li><li>字符串个数 ：395个 从offset中的个数和实际个数检查都 <strong>没问题</strong></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%203.png" alt="Untitled"></p><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%204.png" alt="Untitled"></p><ul><li>字符串起始位置：这里要注意字符串其实位置实际上是1ch中的偏移<strong>加0x8</strong>(即stringChunk的起始位置)<ul><li>即0x64c + 0x8 &#x3D; 0x654</li></ul></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%205.png" alt="Untitled"></p><ul><li>这里其实就出现了jadx里报错的0x654</li><li>去看一下0x654的内容，确实是一个字符串，但是发现前面有4个字节在manifest的模板里是找不到的</li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%206.png" alt="Untitled"></p><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%207.png" alt="Untitled"></p><ul><li>看了其他几个正常反编译的manifest也发现<strong>string offsets</strong>后面应该直接跟<strong>string pool</strong>（实际的字符串内容），因为大多数manifest都没有style所以style pool offset的偏移item是没有的</li><li>所以感觉应该是这4个00 导致的问题</li></ul><h2 id="3-复原"><a href="#3-复原" class="headerlink" title="3.复原"></a>3.复原</h2><ul><li>因为可能是这4个字节的问题所以直接将其删除</li><li>但是删除会影响<ul><li><strong>整个文件大小</strong>： 0xf6a84 - 0x4 &#x3D; 0xf6a80</li><li><strong>String Chunk的大小</strong>: 0x6b38h - 0x4 &#x3D; 0x6b34</li></ul></li><li>然后恢复真正的<strong>stringPooloffset：</strong>0x648</li><li>将三个字段修复好后脱到jadx中 <strong>反编译成功!!!</strong></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%208.png" alt="Untitled"></p><h2 id="4-manifest文件防护"><a href="#4-manifest文件防护" class="headerlink" title="4.manifest文件防护"></a>4.manifest文件防护</h2><ul><li>总结下反编译失败的原因就是在<strong>string offsets</strong>和<strong>string pool中间加了4个00 然后修改：</strong><ul><li><strong>整个文件大小加4</strong></li><li><strong>String Chunk的大小加4</strong></li><li><strong>stringPooloffset的大小加4</strong></li></ul></li><li>从而导致jadx反编译失败，但安卓系统的解析应该不会受到影响</li><li>所以一个manifest防护的思路就诞生了</li><li>不过目前的思路只能是打包后一个apk后将manifest文件拿出来进行修改后重新打包进行签名</li><li>manifest文件和脚本：<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">链接：https://pan.baidu.com/s/1Qo4cfLHc3ZYElBR1qdhMog </span><br><span class="line">提取码：13f7 </span><br></pre></td></tr></table></figure></li></ul><p>用法可见：</p><p><a href="https://github.com/Sp1keeeee/manifestGuard">https://github.com/Sp1keeeee/manifestGuard</a></p><h2 id="5-参考"><a href="#5-参考" class="headerlink" title="5.参考"></a>5.参考</h2><p><a href="https://bbs.pediy.com/thread-194206.htm">https://bbs.pediy.com/thread-194206.htm</a></p><p><a href="https://bbs.pediy.com/thread-272045.htm">https://bbs.pediy.com/thread-272045.htm</a></p>]]></content>
+    
+    
+    <summary type="html">&lt;h2 id=&quot;1-前言&quot;&gt;&lt;a href=&quot;#1-前言&quot; class=&quot;headerlink&quot; title=&quot;1.前言&quot;&gt;&lt;/a&gt;1.前言&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;某个manifest文件发现jadx和apktool均不能反编译，用jadx打开是这样的</summary>
+    
+    
+    
+    <category term="Android加壳与脱壳" scheme="http://example.com/categories/Android%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/"/>
+    
+    
+    <category term="逆向技术" scheme="http://example.com/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/"/>
+    
+    <category term="加壳与脱壳" scheme="http://example.com/tags/%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/"/>
+    
+  </entry>
   
   <entry>
     <title>Android App漏洞之战（1）——drozer+Inspeckage(xposed)+MobSF</title>
@@ -384,32 +408,6 @@
     <category term="Android" scheme="http://example.com/tags/Android/"/>
     
     <category term="漏洞" scheme="http://example.com/tags/%E6%BC%8F%E6%B4%9E/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>Android加壳与脱壳（9）—— 一次manifest文件修复</title>
-    <link href="http://example.com/2022/01/05/Packer9/"/>
-    <id>http://example.com/2022/01/05/Packer9/</id>
-    <published>2022-01-04T16:00:00.000Z</published>
-    <updated>2023-01-05T12:32:59.137Z</updated>
-    
-    <content type="html"><![CDATA[<h2 id="1-前言"><a href="#1-前言" class="headerlink" title="1.前言"></a>1.前言</h2><ul><li>某个manifest文件发现jadx和apktool均不能反编译，用jadx打开是这样的</li><li>作者：Sp1kee</li><li><span id="more"></span></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled.png" alt="Untitled"></p><ul><li>仔细一看说的应该是字符串的起始位置不对，应该是0x654,实际上是0x650</li><li>但确实不太了解manifest的结构于是搜了一下相关的解决办法但都没法解决这个manifest文件的问题，于是乎决定自己把manifest的格式看一遍</li><li>这里参考的是**<a href="https://bbs.pediy.com/user-home-444052.htm">MindMac</a>** 大佬写的文章中的格式，贴一个大佬的图</li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%201.png" alt="Untitled"></p><ul><li>从头开始配合 010 editor提供的模板进行分析</li></ul><h2 id="2-分析"><a href="#2-分析" class="headerlink" title="2.分析"></a>2.分析</h2><h3 id="2-1-魔术和文件头"><a href="#2-1-魔术和文件头" class="headerlink" title="2.1 魔术和文件头"></a>2.1 魔术和文件头</h3><ul><li>检验了一下都是没问题的</li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%202.png" alt="Untitled"></p><h3 id="2-2-stringChunk"><a href="#2-2-stringChunk" class="headerlink" title="2.2 stringChunk"></a>2.2 stringChunk</h3><ul><li><strong>String Chunk 的标识，值为 0x001C0001 没问题</strong></li><li>String Chunk的大小：0x6b38 <strong>没问题</strong></li><li>string chunk内容区间 (0x08开始  加上面的大小): 0x08 -  6b40 <strong>没问题</strong></li><li>字符串个数 ：395个 从offset中的个数和实际个数检查都 <strong>没问题</strong></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%203.png" alt="Untitled"></p><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%204.png" alt="Untitled"></p><ul><li>字符串起始位置：这里要注意字符串其实位置实际上是1ch中的偏移<strong>加0x8</strong>(即stringChunk的起始位置)<ul><li>即0x64c + 0x8 &#x3D; 0x654</li></ul></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%205.png" alt="Untitled"></p><ul><li>这里其实就出现了jadx里报错的0x654</li><li>去看一下0x654的内容，确实是一个字符串，但是发现前面有4个字节在manifest的模板里是找不到的</li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%206.png" alt="Untitled"></p><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%207.png" alt="Untitled"></p><ul><li>看了其他几个正常反编译的manifest也发现<strong>string offsets</strong>后面应该直接跟<strong>string pool</strong>（实际的字符串内容），因为大多数manifest都没有style所以style pool offset的偏移item是没有的</li><li>所以感觉应该是这4个00 导致的问题</li></ul><h2 id="3-复原"><a href="#3-复原" class="headerlink" title="3.复原"></a>3.复原</h2><ul><li>因为可能是这4个字节的问题所以直接将其删除</li><li>但是删除会影响<ul><li><strong>整个文件大小</strong>： 0xf6a84 - 0x4 &#x3D; 0xf6a80</li><li><strong>String Chunk的大小</strong>: 0x6b38h - 0x4 &#x3D; 0x6b34</li></ul></li><li>然后恢复真正的<strong>stringPooloffset：</strong>0x648</li><li>将三个字段修复好后脱到jadx中 <strong>反编译成功!!!</strong></li></ul><p><img src="https://packer-1307040378.cos.ap-chengdu.myqcloud.com/packer9/Untitled%208.png" alt="Untitled"></p><h2 id="4-manifest文件防护"><a href="#4-manifest文件防护" class="headerlink" title="4.manifest文件防护"></a>4.manifest文件防护</h2><ul><li>总结下反编译失败的原因就是在<strong>string offsets</strong>和<strong>string pool中间加了4个00 然后修改：</strong><ul><li><strong>整个文件大小加4</strong></li><li><strong>String Chunk的大小加4</strong></li><li><strong>stringPooloffset的大小加4</strong></li></ul></li><li>从而导致jadx反编译失败，但安卓系统的解析应该不会受到影响</li><li>所以一个manifest防护的思路就诞生了</li><li>不过目前的思路只能是打包后一个apk后将manifest文件拿出来进行修改后重新打包进行签名</li><li>manifest文件和脚本：<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">链接：https://pan.baidu.com/s/1Qo4cfLHc3ZYElBR1qdhMog </span><br><span class="line">提取码：13f7 </span><br></pre></td></tr></table></figure></li></ul><p>用法可见：</p><p><a href="https://github.com/Sp1keeeee/manifestGuard">https://github.com/Sp1keeeee/manifestGuard</a></p><h2 id="5-参考"><a href="#5-参考" class="headerlink" title="5.参考"></a>5.参考</h2><p><a href="https://bbs.pediy.com/thread-194206.htm">https://bbs.pediy.com/thread-194206.htm</a></p><p><a href="https://bbs.pediy.com/thread-272045.htm">https://bbs.pediy.com/thread-272045.htm</a></p>]]></content>
-    
-    
-    <summary type="html">&lt;h2 id=&quot;1-前言&quot;&gt;&lt;a href=&quot;#1-前言&quot; class=&quot;headerlink&quot; title=&quot;1.前言&quot;&gt;&lt;/a&gt;1.前言&lt;/h2&gt;&lt;ul&gt;
-&lt;li&gt;某个manifest文件发现jadx和apktool均不能反编译，用jadx打开是这样的&lt;/li&gt;
-&lt;li&gt;作者：Sp1kee&lt;/li&gt;
-&lt;li&gt;</summary>
-    
-    
-    
-    <category term="Android加壳与脱壳" scheme="http://example.com/categories/Android%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/"/>
-    
-    
-    <category term="逆向技术" scheme="http://example.com/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/"/>
-    
-    <category term="加壳与脱壳" scheme="http://example.com/tags/%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/"/>
     
   </entry>
   
