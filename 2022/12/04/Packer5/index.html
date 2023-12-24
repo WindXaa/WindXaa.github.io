@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言为了帮助更加方便的进行漏洞挖掘工作，前面我们通过了几篇文章详解的给大家介绍了动态调试技术、过反调试技术、Hook技术、过反Hook技术、抓包技术等，掌握了这些可以很方便的开展App漏洞挖掘工作，而最后我们还需要掌握一定的脱壳技巧，进行进一步助力我们漏洞挖掘的效率，本文主要介绍Android App加壳中的整体dex加壳，帮助大家掌握加壳的原理和脱壳的各种技能。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android加壳与脱壳（5）——整体加壳原理和脱壳技巧详解">
+<meta property="og:url" content="http://security-kitchen.com/2022/12/04/Packer5/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言为了帮助更加方便的进行漏洞挖掘工作，前面我们通过了几篇文章详解的给大家介绍了动态调试技术、过反调试技术、Hook技术、过反Hook技术、抓包技术等，掌握了这些可以很方便的开展App漏洞挖掘工作，而最后我们还需要掌握一定的脱壳技巧，进行进一步助力我们漏洞挖掘的效率，本文主要介绍Android App加壳中的整体dex加壳，帮助大家掌握加壳的原理和脱壳的各种技能。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/1.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/2.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/3.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/4.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/5.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/6.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/9.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/11.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/12.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/13.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/14.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/7.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/15.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/16.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/17.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/18.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/19.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/20.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/26.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/27.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/30.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/28.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/29.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/34.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/31.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/32.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/33.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/40.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/41.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/44.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/45.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/46.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/42.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/43.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/47.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/35.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/36.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/37.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/38.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/39.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/48.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/49.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/50.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/51.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/52.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/53.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/54.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/55.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/56.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/99.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/57.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/58.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/59.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/60.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/62.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/61.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/63.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/64.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/65.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/98.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/66.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/97.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/65.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/67.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/68.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/69.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/70.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/90.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/81.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/82.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/83.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/86.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/91.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/92.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/93.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/94.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/95.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/96.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/71.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/72.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/74.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/73.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/75.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/76.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/77.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/78.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/79.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/80.png">
+<meta property="article:published_time" content="2022-12-03T16:00:00.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.106Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="逆向技术">
+<meta property="article:tag" content="加壳与脱壳">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2022/12/04/Packer5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android加壳与脱壳（5）——整体加壳原理和脱壳技巧详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2022/12/04/Packer5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android加壳与脱壳（5）——整体加壳原理和脱壳技巧详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-04 00:00:00" itemprop="dateCreated datePublished" datetime="2022-12-04T00:00:00+08:00">2022-12-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/" itemprop="url" rel="index"><span itemprop="name">Android加壳与脱壳</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>为了帮助更加方便的进行漏洞挖掘工作，前面我们通过了几篇文章详解的给大家介绍了动态调试技术、过反调试技术、Hook技术、过反Hook技术、抓包技术等，掌握了这些可以很方便的开展App漏洞挖掘工作，而最后我们还需要掌握一定的脱壳技巧，进行进一步助力我们漏洞挖掘的效率，本文主要介绍Android App加壳中的整体dex加壳，帮助大家掌握加壳的原理和脱壳的各种技能。</p>
+<span id="more"></span>
+
+<p>本文第二节主要讲述Android启动流程和加壳原理</p>
+<p>本文第三节主要介绍整体加壳的实现</p>
+<p>本文第四节主要讲当下脱壳点的概念</p>
+<p>本文第五节讲述现有的脱壳技巧</p>
+<h2 id="二、相关介绍"><a href="#二、相关介绍" class="headerlink" title="二、相关介绍"></a>二、相关介绍</h2><h3 id="1-Android-App启动流程"><a href="#1-Android-App启动流程" class="headerlink" title="1.Android App启动流程"></a>1.Android App启动流程</h3><h4 id="（1）Android系统启动流程"><a href="#（1）Android系统启动流程" class="headerlink" title="（1）Android系统启动流程"></a>（1）Android系统启动流程</h4><p>我们要彻底的了解App加壳原理，首先我们从了解App的启动流程出发，先于App启动之前，Android系统是启动最早，下面我们来详细查看一下Android系统的启动过程：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/1.png"></p>
+<p>我在<a target="_blank" rel="noopener" href="https://blog.csdn.net/hzwailll/article/details/85339714">Xposed源码定制</a>一文中详细的讲解了Android的启动流程，简单来说就是：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/2.png"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">加载BootLoader --&gt; 初始化内核 --&gt; 启动init进程 --&gt; init进程fork出Zygote进程 --&gt; Zygote进程fork出SystemServer进程</span><br></pre></td></tr></table></figure>
+
+<p>我们就了解了最后Zygote进程fork出第一个进程：<code>SystemServer</code>进程，SystemServer主要完成了以下工作：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/3.png" alt="image-20220612154820955"></p>
+<p><strong>android app安装</strong></p>
+<p>首先这里我们先介绍一下<code>PackageManagerService</code>，其主要是完成Android中应用程序安装的服务，我们了解的Android应用程序安装的方式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">· 系统启动时安装，没有安装界面</span><br><span class="line">· 第三方应用安装，有安装界面，也是我们最熟悉的方式</span><br><span class="line">· ADB命令安装，没有安装界面</span><br><span class="line">· 通过各类应用市场安装，没有安装界面</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/4.png" alt="image-20220612154820955"></p>
+<p>虽然安装方式不同，但是最后四种方式都是通过PackageManagerService服务来完成应用程序的安装。而PackageManagerService服务则通过与Installd服务通信，发送具体的指令来执行应用程序的安装、卸载等工作</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> IPackageManager <span class="title function_">main</span><span class="params">(Context context, Installer installer,</span></span><br><span class="line"><span class="params">    <span class="type">boolean</span> factoryTest, <span class="type">boolean</span> onlyCore)</span> &#123;</span><br><span class="line">        <span class="type">PackageManagerService</span> <span class="variable">m</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">PackageManagerService</span>(context, installer, factoryTest, onlyCore);</span><br><span class="line">        ServiceManager.addService(<span class="string">&quot;package&quot;</span>, m);</span><br><span class="line">    <span class="keyword">return</span> m;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>应用程序在安装时涉及到如下几个重要目录：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/5.png" alt="image-20220612154820955"></p>
+<p>我们了解完App的安装流程是由<code>PackageManagerService</code>，同理SystemServer启动了一个更加重要的服务<code>ActivityManagerService</code>, 而AMS其中很重要的一个作用就是启动<code>Launcher</code>进程，具体是怎么启动的，大家可以参考文章:<a target="_blank" rel="noopener" href="https://blog.csdn.net/itachi85/article/details/56669808">Android系统启动流程（四）Launcher启动过程与系统启动流程</a>，这里就不再详细讲解，而进入<code>Launcher</code>进程，我们就进入了App启动的流程。</p>
+<h4 id="（2）App启动流程"><a href="#（2）App启动流程" class="headerlink" title="（2）App启动流程"></a>（2）App启动流程</h4><p>Android系统启动的最后一步是启动一个Home应用程序，这个应用程序用来显示系统中已经安装的应用程序，这个Home应用程序就叫做Launcher。应用程序Launcher在启动过程中会请求PackageManagerService返回系统中已经安装的应用程序的信息，并将这些信息封装成一个快捷图标列表显示在系统屏幕上，这样用户可以通过点击这些快捷图标来启动相应的应用程序</p>
+<p>前面我们描述了AMS将Launcher启动，然后进入App启动流程，这里参考文章：<a target="_blank" rel="noopener" href="https://blog.csdn.net/hzwailll/article/details/85339714">ActivityThread的理解和APP的启动过程</a></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/6.png" alt="image-20220612154820955"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">(1)点击桌面APP图标时，Launcher的startActivity()方法，通过Binder通信，调用system_server进程中AMS服务的startActivity方法，发起启动请求</span><br><span class="line">(2)system_server进程接收到请求后，向Zygote进程发送创建进程的请求</span><br><span class="line">(3)Zygote进程fork出App进程，并执行ActivityThread的main方法，创建ActivityThread线程，初始化MainLooper，主线程Handler，同时初始化ApplicationThread用于和AMS通信交互</span><br><span class="line">(4)App进程，通过Binder向sytem_server进程发起attachApplication请求，这里实际上就是APP进程通过Binder调用sytem_server进程中AMS的attachApplication方法,AMS的attachApplication方法的作用是将ApplicationThread对象与AMS绑定</span><br><span class="line">(5)system_server进程在收到attachApplication的请求，进行一些准备工作后，再通过binder IPC向App进程发送handleBindApplication请求（初始化Application并调用onCreate方法）和scheduleLaunchActivity请求（创建启动Activity）</span><br><span class="line">(6)App进程的binder线程（ApplicationThread）在收到请求后，通过handler向主线程发送BIND_APPLICATION和LAUNCH_ACTIVITY消息，这里注意的是AMS和主线程并不直接通信，而是AMS和主线程的内部类ApplicationThread通过Binder通信，ApplicationThread再和主线程通过Handler消息交互。</span><br><span class="line">(7)主线程在收到Message后，创建Application并调用onCreate方法，再通过反射机制创建目标Activity，并回调Activity.onCreate()等方法</span><br><span class="line">(8)到此，App便正式启动，开始进入Activity生命周期，执行完onCreate/onStart/onResume方法，UI渲染后显示APP主界面</span><br></pre></td></tr></table></figure>
+
+<p>到这里，我们的大致弄清了APP的启动流程，而这里我们就进入了加壳中十分重要的地方<code>ActivityTread</code></p>
+<h4 id="（3）ActivityThread启动流程"><a href="#（3）ActivityThread启动流程" class="headerlink" title="（3）ActivityThread启动流程"></a>（3）ActivityThread启动流程</h4><p>寒冰大佬在<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-252630.htm">FART：ART环境下基于主动调用的自动化脱壳方案 </a>一文中讲述了ActivityThread.main()是进入App世界的大门，并由此展开了对加壳原理的讲述</p>
+<p>同理接下来，我们开始进行源码分析，了解ActivityThread的具体操作：</p>
+<p><code>xref/frameworks/base/core/java/android/app/ActivityThread.java</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/8.png" alt="image-20220612164337749"></p>
+<p>根据寒冰大佬描述，在ActivityThread完成实例化操作，调用thread.attach(false)完成一系列初始化准备工作，最后主线程进入消息循环，等待接收来自系统的消息。当收到系统发送来的bindapplication的进程间调用时，调用函数<code>handlebindapplication</code>来处理该请求</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">handleMessage</span><span class="params">(Message msg)</span> &#123;</span><br><span class="line">****</span><br><span class="line">    <span class="keyword">case</span> BIND_APPLICATION:</span><br><span class="line">        Trace.traceBegin(Trace.TRACE_TAG_ACTIVITY_MANAGER, <span class="string">&quot;bindApplication&quot;</span>);</span><br><span class="line">        <span class="type">AppBindData</span> <span class="variable">data</span> <span class="operator">=</span> (AppBindData)msg.obj;</span><br><span class="line">        handleBindApplication(data);</span><br><span class="line">        Trace.traceEnd(Trace.TRACE_TAG_ACTIVITY_MANAGER);</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">****</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在处理消息过程，很很明显进入了<code>handlebindapplication</code>函数</p>
+<p>这里我再用寒冰大佬文章的内容：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/9.png" alt="image-20220612164337749"></p>
+<p>我们定位第四步，Application进行实例化，然后进入<code>makeApplication</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/11.png" alt="image-20220612165753498"></p>
+<p>然后我们进入<code>newApplication</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/12.png" alt="image-20220612170020202"></p>
+<p>这里我们可以看见完成了两件事：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">（1）完成了Application的实例化</span><br><span class="line">（2）并调用Application.attach()函数</span><br></pre></td></tr></table></figure>
+
+<p>然后我们继续进入<code>Application.attach()</code>函数</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/13.png" alt="image-20220612170305879"></p>
+<p>这里我们就进一步调用了<code>attachBaseContext()</code>方法</p>
+<p>最后回到<code>handlebindapplication</code>中执行第6步，进入callApplicationOnCreate()函数</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/14.png" alt="image-20220612170604374"></p>
+<p>就执行了<code>Application.onCreate()方法</code></p>
+<p>总结：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">从上可知, App的运行流程是</span><br><span class="line">	初始化————&gt;Application的构造函数————&gt;Application.attachBaseContext()————&gt;Application.onCreate()函数</span><br><span class="line">最后才会进入MainActivity中的attachBaseContext函数、onCreate函数</span><br><span class="line">所以加壳厂商要在程序正式执行前，也就是上面的流程中进行动态加载和类加载器的修正，这样才能对加密的dex进行释放，而一般的1厂商往往选择在Application中的attachBaseContext或onCreate函数进行</span><br></pre></td></tr></table></figure>
+
+<p>这里我附上网上一个大佬的详细执行流程图：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/7.png" alt="image-20220612170604374"></p>
+<h3 id="2-整体加壳原理详解"><a href="#2-整体加壳原理详解" class="headerlink" title="2.整体加壳原理详解"></a>2.整体加壳原理详解</h3><h4 id="（1）整体加壳原理"><a href="#（1）整体加壳原理" class="headerlink" title="（1）整体加壳原理"></a>（1）整体加壳原理</h4><p>Dex整体加壳可以理解为在加密的源Apk程序外面有套上了一层外壳，简单过程为：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/15.png" alt="image-20220424141415510"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/16.png" alt="image-20220424141415510"></p>
+<p>如何对App进行加一层外壳呢，这里就需要应用动态加载的原理，关于动态加载和类加载器，我在上篇文章中有详细讲解：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-271538.htm">Android加壳脱壳学习（1）——动态加载和类加载机制详解</a></p>
+<p>这里我们可以用一个案例来进一步讲述，我们打开一个整体加壳的样本</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/17.png" alt="image-20220612172943793"></p>
+<p>我们很明显看见，除了一个代理类Application，其他相关的代码信息都无法发现</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/18.png" alt="image-20220612173124912"></p>
+<p>在代理类中反射调用了一些方法，很显然我们解析出的结果都无法查找，很明显就说明在Application.attchBaseContext()和Application.onCreate()中必须要完成对源加密的dex的动态加载和解密</p>
+<p>结合上面的描述，App加载应用解析时就是这个流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">（1）BootClassLoader加载系统核心库</span><br><span class="line">（2）PathClassLoader加载APP自身dex</span><br><span class="line">（3）进入APP自身组件，解析AndroidManifest.xml，然后查找Application代理</span><br><span class="line">（4）调用声明Application的attachBaseContext()对源程序进行动态加载或解密</span><br><span class="line">（5）调用声明Application的onCreate()对源程序进行动态加载或解密</span><br><span class="line">（6）进入MainActivity中的attachBaseContext()，然后进入onCreate()函数，执行源程序代码</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）类加载器的修正"><a href="#（2）类加载器的修正" class="headerlink" title="（2）类加载器的修正"></a>（2）类加载器的修正</h4><p>上面我们已经很清晰的了解了壳加载的流程，我们很明显的意识到一个问题，我们从头到尾都是用<code>PathClassLoader</code>来加载dex，而上篇文章我在讲类加载器的过程中说过</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/19.png" alt="image-20220612185103615"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Android中的ClassLoader类型分为系统ClassLoader和自定义ClassLoader。其中系统ClassLoader包括<span class="number">3</span>种是BootClassLoader、DexClassLoader、PathClassLoader</span><br><span class="line">(<span class="number">1</span>)BootClassLoader:Android平台上所有Android系统启动时会使用BootClassLoader来预加载常用的类</span><br><span class="line">(<span class="number">2</span>)BaseDexClassLoader:实际应用层类文件的加载，而真正的加载委托给pathList来完成</span><br><span class="line">(<span class="number">3</span>)DexClassLoader:可以加载dex文件以及包含dex的压缩文件(apk,dex,jar,zip),可以安装一个未安装的apk文件，一般为自定义类加载器</span><br><span class="line">(<span class="number">4</span>)PathClassLoader:可以加载系统类和应用程序的类，通常用来加载已安装的apk的dex文件</span><br><span class="line"> </span><br><span class="line">补充：</span><br><span class="line">Android 提供的原生加载器叫做基础类加载器，包括：BootClassLoader，PathClassLoader，DexClassLoader，InMemoryDexClassLoader（Android <span class="number">8.0</span> 引入），DelegateLastClassLoader（Android <span class="number">8.1</span> 引入）</span><br></pre></td></tr></table></figure>
+
+<p>我们要想动态加载dex文件必须使用自定义的<code>DexClassLoader</code>，那我们直接使用<code>DexClassLoader</code>进行加载就可以么，很显然不行，还是会报异常</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">DexClassLoader加载的类是没有组件生命周期的，即DexClassLoader即使通过对APK的动态加载完成了对组件类的加载，当系统启动该组件时，依然会出现加载类失败的异常</span><br></pre></td></tr></table></figure>
+
+<p>所以我们要想使用DexClassLoader进行动态加载dex，我们需要进行类加载器的修正</p>
+<p>当前实现类加载器的修正，主要有两种方案：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">（1）替换系统组件类加载器为我们的DexClassLoader，同时设置DexClassLoader的parent为系统组件加载器</span><br><span class="line">（2）打破原有的双亲委派关系，在系统组件类加载器PathClassLoader和BootClassLoader的中间插入我们自己的DexClassLoader</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-1-gt-类加载器替换"><a href="#lt-1-gt-类加载器替换" class="headerlink" title="&lt;1&gt;类加载器替换"></a>&lt;1&gt;类加载器替换</h5><p>怎么去替换系统的类加载器了，这就和我们上面分析的ActivityThread中<code>LoadedApk</code>有关了，<code>LoadedApk</code>主要负责加载一个Apk程序，我们进一步分析源码</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/20.png" alt="image-20220612190524422"></p>
+<p>很明显，我们可以想到我们通过反射获取mclassLoader，然后使用我们的DexClassLoader进行替换，不就可以成功的让DexClassLoader拥有生命周期了么</p>
+<p>源码实现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">总结：</span><br><span class="line">	（<span class="number">1</span>）获取ActivityThread实例</span><br><span class="line">	（<span class="number">2</span>）通过反射获取类加载器</span><br><span class="line">	（<span class="number">3</span>）获取LoadedApk</span><br><span class="line">	（<span class="number">4</span>）获取mClassLoader系统类加载器</span><br><span class="line">	（<span class="number">5</span>）替换自定义类加载器为系统类加载器</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">replaceClassLoader</span><span class="params">(Context context,ClassLoader dexClassLoader)</span>&#123;</span><br><span class="line">       <span class="type">ClassLoader</span> <span class="variable">pathClassLoader</span> <span class="operator">=</span> MainActivity.class.getClassLoader();</span><br><span class="line">       <span class="keyword">try</span> &#123;</span><br><span class="line">           <span class="comment">//1.获取ActivityThread实例</span></span><br><span class="line">           <span class="type">Class</span> <span class="variable">ActivityThread</span> <span class="operator">=</span> pathClassLoader.loadClass(<span class="string">&quot;android.app.ActivityThread&quot;</span>);</span><br><span class="line">           <span class="type">Method</span> <span class="variable">currentActivityThread</span> <span class="operator">=</span> ActivityThread.getDeclaredMethod(<span class="string">&quot;currentActivityThread&quot;</span>);</span><br><span class="line">           <span class="type">Object</span> <span class="variable">activityThreadObj</span> <span class="operator">=</span> currentActivityThread.invoke(<span class="literal">null</span>);</span><br><span class="line">           <span class="comment">//2.通过反射获得类加载器</span></span><br><span class="line">           <span class="comment">//final ArrayMap&lt;String, WeakReference&lt;LoadedApk&gt;&gt; mPackages = new ArrayMap&lt;&gt;();</span></span><br><span class="line">           <span class="type">Field</span> <span class="variable">mPackagesField</span> <span class="operator">=</span> ActivityThread.getDeclaredField(<span class="string">&quot;mPackages&quot;</span>);</span><br><span class="line">           mPackagesField.setAccessible(<span class="literal">true</span>);</span><br><span class="line">           <span class="comment">//3.拿到LoadedApk</span></span><br><span class="line">           <span class="type">ArrayMap</span> <span class="variable">mPackagesObj</span> <span class="operator">=</span> (ArrayMap) mPackagesField.get(activityThreadObj);</span><br><span class="line">           <span class="type">String</span> <span class="variable">packagename</span> <span class="operator">=</span> context.getPackageName();</span><br><span class="line">           <span class="type">WeakReference</span> <span class="variable">wr</span> <span class="operator">=</span> (WeakReference) mPackagesObj.get(packagename);</span><br><span class="line">           <span class="type">Object</span> <span class="variable">LoadApkObj</span> <span class="operator">=</span> wr.get();</span><br><span class="line">           <span class="comment">//4.拿到mclassLoader</span></span><br><span class="line">           <span class="type">Class</span> <span class="variable">LoadedApkClass</span> <span class="operator">=</span> pathClassLoader.loadClass(<span class="string">&quot;android.app.LoadedApk&quot;</span>);</span><br><span class="line">           <span class="type">Field</span> <span class="variable">mClassLoaderField</span> <span class="operator">=</span> LoadedApkClass.getDeclaredField(<span class="string">&quot;mClassLoader&quot;</span>);</span><br><span class="line">           mClassLoaderField.setAccessible(<span class="literal">true</span>);</span><br><span class="line">           <span class="type">Object</span> <span class="variable">mClassLoader</span> <span class="operator">=</span>mClassLoaderField.get(LoadApkObj);</span><br><span class="line">           Log.e(<span class="string">&quot;mClassLoader&quot;</span>,mClassLoader.toString());</span><br><span class="line">           <span class="comment">//5.将系统组件ClassLoader给替换</span></span><br><span class="line">           mClassLoaderField.set(LoadApkObj,dexClassLoader);</span><br><span class="line">       &#125;</span><br><span class="line">       <span class="keyword">catch</span> (ClassNotFoundException e) &#123;</span><br><span class="line">           e.printStackTrace();</span><br><span class="line">       &#125; <span class="keyword">catch</span> (NoSuchMethodException e) &#123;</span><br><span class="line">           e.printStackTrace();</span><br><span class="line">       &#125; <span class="keyword">catch</span> (IllegalAccessException e) &#123;</span><br><span class="line">           e.printStackTrace();</span><br><span class="line">       &#125; <span class="keyword">catch</span> (InvocationTargetException e) &#123;</span><br><span class="line">           e.printStackTrace();</span><br><span class="line">       &#125; <span class="keyword">catch</span> (NoSuchFieldException e) &#123;</span><br><span class="line">           e.printStackTrace();</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-2-gt-类加载器插入"><a href="#lt-2-gt-类加载器插入" class="headerlink" title="&lt;2&gt;类加载器插入"></a>&lt;2&gt;类加载器插入</h5><p>还有一种方案，动态加载中我们讲述了类加载器的双亲委派机制，就是说我们的类加载器刚拿到类，并不会直接进行加载，而是先判断自己是否加载，如果没有加载则给自己的父类，父类再给父类，所以我们让DexClassLoader成为PathClassLoader的父类，这样就可以解决DexClassLoader生命周期的问题</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">总结：</span><br><span class="line">	（<span class="number">1</span>）将DexClassloader父节点设置为BootClassLoader</span><br><span class="line">	（<span class="number">2</span>）将PathClassLoader父节点设置为DexClassloader</span><br></pre></td></tr></table></figure>
+
+<p>代码实现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">replaceClassLoader</span><span class="params">(Context context, ClassLoader dexClassLoader)</span>&#123;</span><br><span class="line">        <span class="comment">//将pathClassLoader父节点设置为DexClassLoader</span></span><br><span class="line">        <span class="type">ClassLoader</span> <span class="variable">pathClassLoaderobj</span> <span class="operator">=</span> context.getClassLoader();</span><br><span class="line">        Class&lt;ClassLoader&gt; ClassLoaderClass = ClassLoader.class;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="type">Field</span> <span class="variable">parent</span> <span class="operator">=</span> ClassLoaderClass.getDeclaredField(<span class="string">&quot;parent&quot;</span>);</span><br><span class="line">            parent.setAccessible(<span class="literal">true</span>);</span><br><span class="line">            parent.set(pathClassLoaderobj,dexClassLoader);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (NoSuchFieldException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125; <span class="keyword">catch</span> (IllegalAccessException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>完成壳加载器的修正后，我们就可以正常的加载dex了</p>
+<h2 id="三、整体加壳案例实现"><a href="#三、整体加壳案例实现" class="headerlink" title="三、整体加壳案例实现"></a>三、整体加壳案例实现</h2><p>前面我们详细讲述了App运行机制和整体加壳的实现机制，下面我们就按照前面的讲述，来实现一个简单的整体加壳案例</p>
+<p>实验准备：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">源程序</span><br><span class="line">加壳程序</span><br></pre></td></tr></table></figure>
+
+<h3 id="1-编写源程序"><a href="#1-编写源程序" class="headerlink" title="1.编写源程序"></a>1.编写源程序</h3><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/26.png" alt="image-20220612193114397"></p>
+<p>这就是我们的源程序，源程序运行，我们会在日志中看见我们打印的信息，然后我们生成dex文件</p>
+<h3 id="2-编写壳程序"><a href="#2-编写壳程序" class="headerlink" title="2.编写壳程序"></a>2.编写壳程序</h3><h4 id="（1）准备工作"><a href="#（1）准备工作" class="headerlink" title="（1）准备工作"></a>（1）准备工作</h4><p>将dex文件上传sdcard，并给应用设置存储权限</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/27.png" alt="image-20220612195812601"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/30.png" alt="image-20220612200126917"></p>
+<h4 id="（2）编写代理类"><a href="#（2）编写代理类" class="headerlink" title="（2）编写代理类"></a>（2）编写代理类</h4><p>我们首先编写代理类，模仿上面的加壳应用</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/28.png" alt="image-20220612193735398"></p>
+<p>然后我们设置AndroidManifest.xml中的代理类别</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/29.png" alt="image-20220612193921062"></p>
+<p>然后我们选择在attachBaseContext或onCreate中对我们的dex进行动态加载和类加载器修正即可，因为这里我们源dex并未进行加密，所以也无需解密的过程</p>
+<p>然后加入导入类的Activity</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/34.png" alt="image-20220612215843088"></p>
+<h4 id="（3）动态加载"><a href="#（3）动态加载" class="headerlink" title="（3）动态加载"></a>（3）动态加载</h4><p>我们进行动态加载classes.dex</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/31.png" alt="image-20220612200319851"></p>
+<p>然后使用上面的一种方法进行类加载器修正</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/32.png" alt="image-20220612215713138"></p>
+<p>然后运行</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/33.png" alt="image-20220612215745595"></p>
+<p>运行成功，说明我们的整体加壳成功</p>
+<h2 id="四、脱壳点相关概念详解"><a href="#四、脱壳点相关概念详解" class="headerlink" title="四、脱壳点相关概念详解"></a>四、脱壳点相关概念详解</h2><p>上面我们已经理解了APP加壳的基本原理，下面我们进一步来学习如何进行脱壳，Android APP脱壳绕不开<code>DexFile</code>、<code>ArtMethod</code>两个概念，这两个在脱壳中扮演的至关重要的地位，无数的脱壳点都是从其演变而来。</p>
+<h3 id="1-Dex加载流程"><a href="#1-Dex加载流程" class="headerlink" title="1.Dex加载流程"></a>1.Dex加载流程</h3><p>我们在分析脱壳点过程中，首先就需要明白Dex加载的基本流程</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/40.png" alt="image-20220612215745595"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">DexPathList:该类主要用来查找Dex、SO库的路径，并这些路径整体呈一个数组</span><br><span class="line">Element:根据多路径的分隔符“;”将dexPath转换成File列表，记录所有的dexFile</span><br><span class="line">DexFile:用来描述Dex文件，Dex的加载以及Class的查找都是由该类调用它的native方法完成的</span><br></pre></td></tr></table></figure>
+
+<p>我们依次来分析这个过程中的源码</p>
+<p><code>DexPathList</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">/libcore/dalvik/src/main/java/dalvik/system/DexPathList.java</span><br><span class="line"><span class="keyword">public</span> <span class="title function_">DexPathList</span><span class="params">(ClassLoader definingContext, String dexPath,</span></span><br><span class="line"><span class="params">            String librarySearchPath, File optimizedDirectory)</span> &#123;</span><br><span class="line">**********************      </span><br><span class="line">   <span class="built_in">this</span>.dexElements = makeDexElements(splitDexPath(dexPath), optimizedDirectory,</span><br><span class="line">                                         suppressedExceptions, definingContext);    </span><br><span class="line">**********************  </span><br><span class="line">            &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>makeDexElements</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> Element[] makeDexElements(List&lt;File&gt; files, File optimizedDirectory,</span><br><span class="line">          List&lt;IOException&gt; suppressedExceptions, ClassLoader loader) &#123;</span><br><span class="line">**********************            </span><br><span class="line">       <span class="type">DexFile</span> <span class="variable">dex</span> <span class="operator">=</span> loadDexFile(file, optimizedDirectory, loader, elements);    </span><br><span class="line">**********************         </span><br><span class="line">          &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>loadDexFile</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> DexFile <span class="title function_">loadDexFile</span><span class="params">(File file, File optimizedDirectory, ClassLoader loader,</span></span><br><span class="line"><span class="params">                                       Element[] elements)</span></span><br><span class="line">            <span class="keyword">throws</span> IOException &#123;</span><br><span class="line">        <span class="keyword">if</span> (optimizedDirectory == <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">DexFile</span>(file, loader, elements);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">           <span class="type">String</span> <span class="variable">optimizedPath</span> <span class="operator">=</span> optimizedPathFor(file, optimizedDirectory);</span><br><span class="line">            <span class="keyword">return</span> DexFile.loadDex(file.getPath(), optimizedPath, <span class="number">0</span>, loader, elements);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>loadDex</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> DexFile <span class="title function_">loadDex</span><span class="params">(String sourcePathName, String outputPathName,</span></span><br><span class="line"><span class="params">      <span class="type">int</span> flags, ClassLoader loader, DexPathList.Element[] elements)</span> <span class="keyword">throws</span> IOException &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">DexFile</span>(sourcePathName, outputPathName, flags, loader, elements);</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>DexFile</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">/libcore/dalvik/src/main/java/dalvik/system/DexFile.java</span><br><span class="line">DexFile(String fileName, ClassLoader loader, DexPathList.Element[] elements) throws IOException &#123;</span><br><span class="line">        mCookie = openDexFile(fileName, null, 0, loader, elements);</span><br><span class="line">        mInternalCookie = mCookie;</span><br><span class="line">        mFileName = fileName;</span><br><span class="line">        //System.out.println(&quot;DEX FILE cookie is &quot; + mCookie + &quot; fileName=&quot; + fileName);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里出现的mCookie，mCookie在C&#x2F;C++层中是DexFile的指针，我们在下面详细讲解</p>
+<p><code>openDexFile</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> Object <span class="title function_">openDexFile</span><span class="params">(String sourceName, String outputName, <span class="type">int</span> flags,</span></span><br><span class="line"><span class="params">        ClassLoader loader, DexPathList.Element[] elements)</span> <span class="keyword">throws</span> IOException &#123;</span><br><span class="line">       <span class="comment">// Use absolute paths to enable the use of relative paths when testing on host.</span></span><br><span class="line">        <span class="keyword">return</span> openDexFileNative(<span class="keyword">new</span> <span class="title class_">File</span>(sourceName).getAbsolutePath(),</span><br><span class="line">                                 (outputName == <span class="literal">null</span>)</span><br><span class="line">                                    ? <span class="literal">null</span></span><br><span class="line">                                   : <span class="keyword">new</span> <span class="title class_">File</span>(outputName).getAbsolutePath(),</span><br><span class="line">                               	   flags,</span><br><span class="line">                                   loader,</span><br><span class="line">                                   elements);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里就进入了C&#x2F;C++层</p>
+<p><code>openDexFileNative</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/41.png" alt="image-20220613134340460"></p>
+<p>为了节约篇幅，我们快速分析，中间再经过一些函数</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">OpenDexFilesFromOat()</span><br><span class="line">MakeUpToDate()</span><br><span class="line">GenerateOatFileNoChecks()</span><br><span class="line">Dex2Oat()</span><br></pre></td></tr></table></figure>
+
+<p>最后进进入了Dex2Oat，这就进入了Dex2Oat的编译流程</p>
+<p>反之如果我们在下面Dex2Oat的流程中通过Hook相关方法或execv或execve导致dex2oat失败，我们就会返回到<code>OpenDexFilesFromOat</code></p>
+<p><code>OpenDexFilesFromOat</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/44.png" alt="image-20220613145156590"></p>
+<p>会先在<code>HasOriginalDexFiles</code>里尝试加载我们的Dex，也就是说，倘若我们的壳阻断了dex2oat的编译流程，然后又调用了DexFile的Open函数。</p>
+<p><code>DexFile::Open</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/45.png" alt="image-20220613145606897"></p>
+<p>校验dex的魔术字字段，然后调用<code>DexFile::OpenFile</code></p>
+<p><code>DexFile::OpenFile</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">/art/runtime/dex_file.cc</span><br><span class="line">std::unique_ptr&lt;const DexFile&gt; DexFile::OpenFile(int fd,</span><br><span class="line">                                                const std::string&amp; location,</span><br><span class="line">                                                bool verify,</span><br><span class="line">                                                bool verify_checksum,</span><br><span class="line">                                                std::string* error_msg) &#123;</span><br><span class="line"> **************************************</span><br><span class="line"> std::unique_ptr&lt;DexFile&gt; dex_file = OpenCommon(map-&gt;Begin(),</span><br><span class="line">                                                map-&gt;Size(),</span><br><span class="line">                                                location,</span><br><span class="line">                                                dex_header-&gt;checksum_,</span><br><span class="line">                                                kNoOatDexFile,</span><br><span class="line">                                                verify,</span><br><span class="line">                                                verify_checksum,</span><br><span class="line">                                                error_msg);   </span><br><span class="line">  **************************************</span><br><span class="line">                                                </span><br><span class="line">                                                &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>OpenCommon</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/46.png" alt="image-20220613145950224"></p>
+<p>最后又再次回到<code>DexFile</code>类，这里我们的dex文件加载基本流程分析完毕</p>
+<h3 id="2-Dex2Oat编译流程"><a href="#2-Dex2Oat编译流程" class="headerlink" title="2.Dex2Oat编译流程"></a>2.Dex2Oat编译流程</h3><p>Dex2oat是google公司为了提高编译效率的一种机制，从Android8.0开始实施，一些加壳厂商实现抽取壳往往会禁用Dex2oat，而针对整体加壳没有禁用的Dex2Oat也成为了脱壳点</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/42.png" alt="image-20220613134904994"></p>
+<p><code>Exec</code></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">/art/runtime/exec_utils.<span class="function">cc</span></span><br><span class="line"><span class="function"><span class="type">bool</span> <span class="title">Exec</span><span class="params">(std::vector&lt;std::string&gt;&amp; arg_vector, std::string* error_msg)</span> </span>&#123;</span><br><span class="line">  <span class="type">int</span> status = <span class="built_in">ExecAndReturnCode</span>(arg_vector, error_msg);</span><br><span class="line">  <span class="keyword">if</span> (status != <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="function"><span class="type">const</span> std::string <span class="title">command_line</span><span class="params">(android::base::Join(arg_vector, <span class="string">&#x27; &#x27;</span>))</span></span>;</span><br><span class="line">    *error_msg = <span class="built_in">StringPrintf</span>(<span class="string">&quot;Failed execv(%s) because non-0 exit status&quot;</span>,</span><br><span class="line">                              command_line.<span class="built_in">c_str</span>());</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>ExecAndReturnCode</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/43.png" alt="image-20220613143206138"></p>
+<p>而我们就可以通过Hook execv或execve来禁用Dex2Oat，而如果我们不禁用dex2oat，<em>execve函数</em>是用来调用<code>dex2oat</code>的二进制程序实现对dex文件的加载，我们这时候找到<code>dex2oat.cc</code>这个文件，找到main函数</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">/art/dex2oat/dex2oat.cc</span><br><span class="line"> <span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span>** argv)</span> &#123;</span><br><span class="line">  <span class="type">int</span> <span class="variable">result</span> <span class="operator">=</span> static_cast&lt;<span class="type">int</span>&gt;(art::Dex2oat(argc, argv));</span><br><span class="line">  <span class="keyword">if</span> (!art::kIsDebugBuild &amp;&amp; (RUNNING_ON_MEMORY_TOOL == <span class="number">0</span>)) &#123;</span><br><span class="line">    _exit(result);</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> result;</span><br></pre></td></tr></table></figure>
+
+<p>这里我们调用了Dex2oat</p>
+<p><code>Dex2Oat</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">/art/dex2oat/dex2oat.cc</span><br><span class="line"><span class="keyword">static</span> dex2oat::ReturnCode <span class="title function_">Dex2oat</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span>** argv)</span> &#123;</span><br><span class="line">   **************************************</span><br><span class="line">   dex2oat::<span class="type">ReturnCode</span> <span class="variable">setup_code</span> <span class="operator">=</span> dex2oat-&gt;Setup();</span><br><span class="line">    dex2oat::ReturnCode result;</span><br><span class="line">  <span class="keyword">if</span> (dex2oat-&gt;IsImage()) &#123;</span><br><span class="line">    result = CompileImage(*dex2oat);</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    result = CompileApp(*dex2oat);</span><br><span class="line"> &#125;</span><br><span class="line">   **************************************</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Dex2oat中会对dex文件进行逐个类逐个函数的编译，setup()函数完成对dex的加载</p>
+<p>然后顺序执行，就会进入<code>CompileApp</code></p>
+<p>编译过程中会按照逐个函数进行编译，就会进入<code>CompileMethod</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/47.png" alt="image-20220613151229524"></p>
+<p>到这里Dex2oat的基本流程就分析完毕</p>
+<h3 id="3-类加载流程"><a href="#3-类加载流程" class="headerlink" title="3.类加载流程"></a>3.类加载流程</h3><p>要理解DexFile为什么如此重要，首先我们要清除Android APP的类加载流程。Android的类加载一般分为两类<code>隐式加载</code>和<code>显式加载</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>隐式加载:</span><br><span class="line">    (<span class="number">1</span>)创建类的实例,也就是<span class="keyword">new</span>一个对象</span><br><span class="line">    (<span class="number">2</span>)访问某个类或接口的静态变量,或者对该静态变量赋值</span><br><span class="line">    (<span class="number">3</span>)调用类的静态方法</span><br><span class="line">    (<span class="number">4</span>)反射Class.forName(<span class="string">&quot;android.app.ActivityThread&quot;</span>)</span><br><span class="line">    (<span class="number">5</span>)初始化一个类的子类(会首先初始化子类的父类)</span><br><span class="line"><span class="number">2.</span>显示加载：</span><br><span class="line">    (<span class="number">1</span>)使用LoadClass()加载</span><br><span class="line">    (<span class="number">2</span>)使用forName()加载</span><br></pre></td></tr></table></figure>
+
+<p>我们详细看一下显示加载：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Class.forName 和 ClassLoader.loadClass加载有何不同：</span><br><span class="line">（<span class="number">1</span>）ClassLoader.loadClass也能加载一个类,但是不会触发类的初始化(也就是说不会对类的静态变量,静态代码块进行初始化操作)</span><br><span class="line">（<span class="number">2</span>）Class.forName这种方式,不但会加载一个类,还会触发类的初始化阶段,也能够为这个类的静态变量,静态代码块进行初始化操作</span><br></pre></td></tr></table></figure>
+
+<p>我们在详细来看一下在类加载过程中的流程：</p>
+<p><code>java层</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/35.png" alt="image-20220612215745595"></p>
+<p>我们可以发现类加载中关键的DexFile，该类用来描述Dex文件，所以我们的脱壳对象就是<code>DexFile</code></p>
+<p>这里从DexFile进入Native层中，还有一个关键的字段就是<code>mCookie</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/36.png" alt="image-20220613102141423"></p>
+<p>后面我们详细的介绍<code>mCookie</code>的作用</p>
+<p>我们进一步分析，进入Native层</p>
+<p><code>Native层</code></p>
+<p>&#x2F;art&#x2F;runtime&#x2F;native&#x2F;[dalvik_system_DexFile.cc</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/37.png" alt="image-20220613124716608"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ConvertJavaArrayToDexFiles对cookie进行了处理</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/38.png" alt="image-20220613125016884"></p>
+<p>通过这里的分析，我们可以知道mCooike转换为C&#x2F;C++层指针后，就是dexfile的索引</p>
+<p>我们继续分析<code>DefineClass</code></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">art/runtime/class_linker.<span class="function">cc</span></span><br><span class="line"><span class="function">mirror::Class* <span class="title">ClassLinker::DefineClass</span><span class="params">(Thread* self,</span></span></span><br><span class="line"><span class="params"><span class="function">                                      <span class="type">const</span> <span class="type">char</span>* descriptor,</span></span></span><br><span class="line"><span class="params"><span class="function">                                        <span class="type">size_t</span> hash,</span></span></span><br><span class="line"><span class="params"><span class="function">                                       Handle&lt;mirror::ClassLoader&gt; class_loader,</span></span></span><br><span class="line"><span class="params"><span class="function">                                        <span class="type">const</span> DexFile&amp; dex_file,</span></span></span><br><span class="line"><span class="params"><span class="function">                                        <span class="type">const</span> DexFile::ClassDef&amp; dex_class_def)</span> </span>&#123;</span><br><span class="line">***************</span><br><span class="line"><span class="built_in">LoadClass</span>(self, *new_dex_file, *new_class_def, klass);</span><br><span class="line">***************</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>LoadClass</code></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">art/runtime/class_linker.<span class="function">cc</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">ClassLinker::LoadClass</span><span class="params">(Thread* self,</span></span></span><br><span class="line"><span class="params"><span class="function"><span class="number">3120</span>                            <span class="type">const</span> DexFile&amp; dex_file,</span></span></span><br><span class="line"><span class="params"><span class="function"><span class="number">3121</span>                            <span class="type">const</span> DexFile::ClassDef&amp; dex_class_def,</span></span></span><br><span class="line"><span class="params"><span class="function"><span class="number">3122</span>                            Handle&lt;mirror::Class&gt; klass)</span> </span>&#123;</span><br><span class="line"><span class="number">3123</span>  <span class="type">const</span> <span class="type">uint8_t</span>* class_data = dex_file.<span class="built_in">GetClassData</span>(dex_class_def);</span><br><span class="line"><span class="number">3124</span>  <span class="keyword">if</span> (class_data == <span class="literal">nullptr</span>) &#123;</span><br><span class="line"><span class="number">3125</span>    <span class="keyword">return</span>;  <span class="comment">// no fields or methods - for example a marker interface</span></span><br><span class="line"><span class="number">3126</span>  &#125;</span><br><span class="line"><span class="number">3127</span>  <span class="built_in">LoadClassMembers</span>(self, dex_file, class_data, klass);</span><br><span class="line"><span class="number">3128</span>&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>LoadClassMembers</code></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">art/runtime/class_linker.<span class="function">cc</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">ClassLinker::LoadClassMembers</span><span class="params">(Thread* self,</span></span></span><br><span class="line"><span class="params"><span class="function">                                   <span class="type">const</span> DexFile&amp; dex_file,</span></span></span><br><span class="line"><span class="params"><span class="function">                                   <span class="type">const</span> <span class="type">uint8_t</span>* class_data,</span></span></span><br><span class="line"><span class="params"><span class="function">                                   Handle&lt;mirror::Class&gt; klass)</span> </span>&#123;</span><br><span class="line">***************</span><br><span class="line">      <span class="built_in">LoadMethod</span>(dex_file, it, klass, method);</span><br><span class="line">      <span class="built_in">LinkCode</span>(<span class="keyword">this</span>, method, oat_class_ptr, class_def_method_index);</span><br><span class="line">***************</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>LoadMethod</code></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">art/runtime/class_linker.<span class="function">cc</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">ClassLinker::LoadMethod</span><span class="params">(<span class="type">const</span> DexFile&amp; dex_file,</span></span></span><br><span class="line"><span class="params"><span class="function">                           <span class="type">const</span> ClassDataItemIterator&amp; it,</span></span></span><br><span class="line"><span class="params"><span class="function">                            Handle&lt;mirror::Class&gt; klass,</span></span></span><br><span class="line"><span class="params"><span class="function">                             ArtMethod* dst)</span> </span>&#123;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>LinkCode</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/39.png" alt="image-20220613130149629"></p>
+<p>我们可以发现这里就进入了从linkcode后就进入了解释器中，并对是否进行dex2oat进行了判断，我们直接进入解释器中继续分析</p>
+<p>我们知道Art解释器分为两种：<code>解释模式下</code>和<code>quick模式下</code>，而我们又知道Android8.0开始进行dex2oat</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">如果壳没有禁用dex2oat，那类中的初始化函数运行在解释器模式下 </span><br><span class="line">如果壳禁用dex2oat，dex文件中的所有函数都运行在解释器模式下</span><br><span class="line">则类的初始化函数运行在解释器模式下</span><br></pre></td></tr></table></figure>
+
+<p>所以一般的加壳厂商会禁用掉dex2oat，这样可以是所有的函数都运行在解释模式下，所以一些脱壳点选在dex2oat流程中，可能针对禁用dex2oat的情况并不使用，我们这里主要针对整体加壳，就不展开讲述，最后我们得知解释器中会运行在<code>Execute</code>下</p>
+<p><code>Execute</code></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">art/runtime/interpreter/interpreter.<span class="function">cc</span></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="keyword">inline</span> JValue <span class="title">Execute</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    Thread* self,</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> DexFile::CodeItem* code_item,</span></span></span><br><span class="line"><span class="params"><span class="function">    ShadowFrame&amp; shadow_frame,</span></span></span><br><span class="line"><span class="params"><span class="function">    JValue result_register,</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">bool</span> stay_in_interpreter = <span class="literal">false</span>)</span> <span class="title">REQUIRES_SHARED</span><span class="params">(Locks::mutator_lock_)</span></span>&#123;</span><br><span class="line"></span><br><span class="line">***************</span><br><span class="line">      ArtMethod *method = shadow_frame.<span class="built_in">GetMethod</span>();</span><br><span class="line">***************</span><br><span class="line">    </span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里我们大致分析完成了类加载的思路</p>
+<h3 id="4-DexFile详解"><a href="#4-DexFile详解" class="headerlink" title="4.DexFile详解"></a>4.DexFile详解</h3><p>前面我们分析了很多，对dex加载、类加载等都已经有了一个很详细的了解，而最终一切的核心就是DexFile，DexFile就是我们脱壳所关注的重点，寒冰大佬在<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-254555.htm#msg_header_h2_2">拨云见日：安卓APP脱壳的本质以及如何快速发现ART下的脱壳点</a>中提到，在ART下只要获得了DexFile对象，那么我们就可以得到该dex文件在内存中的起始地址和大小，进而完成脱壳。</p>
+<p>我们先查看一些DexFile的结构体</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/48.png" alt="image-20220613152305983"></p>
+<p>只要我们能获得起始地址begin和大小size，就可以成功的将dex文件脱取下来，这里我们记得DexFile含有虚函数表，所以根据C++布局，要偏移一个指针</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/49.png" alt="image-20220613152517629"></p>
+<p>而DexFile类还给我们提供了方便的API</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/50.png" alt="image-20220613152724888"></p>
+<p>这样只要我们找到函数中有DexFile对象，就可以通过调用API来进一步dump dex文件，由此按照寒冰大佬的思想，大量的脱壳点由此产生</p>
+<h4 id="（1）直接查找法"><a href="#（1）直接查找法" class="headerlink" title="（1）直接查找法"></a>（1）直接查找法</h4><p>我们通过直接在Android源码中搜索DexFile，就可以获得海量的脱壳点</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/51.png" alt="image-20220613153036103"></p>
+<p>我们通过在IDA中搜索libart.so导出的DexFile，同样可以获得大量的脱壳点</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/52.png" alt="image-20220613153220786"></p>
+<h4 id="（2）间接查找法"><a href="#（2）间接查找法" class="headerlink" title="（2）间接查找法"></a>（2）间接查找法</h4><p>这里就是寒冰大佬在文章中提到的通过ArtMethod对象的getDexFile()获取到ArtMethod所属的DexFile对象的这种一级间接法，通过Thread的getCurrentMethod()函数首先获取到ArtMethod或者通过ShadowFrame的getMethod获取到ArtMethod对象，然后再通过getDexFile获取到ArtMethod对象所属的DexFile的二级间接法。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">getDexFile()</span><br><span class="line">getMethod()</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-ArtMethod详解"><a href="#5-ArtMethod详解" class="headerlink" title="5.ArtMethod详解"></a>5.ArtMethod详解</h3><p>上面我们已经详细分析了DexFile的文件结构，我们知道通过ArtMethod可以获得DexFile，那么为啥又要单独提ArtMethod呢，因为ArtMethod在抽取壳和VMP等壳中扮演了重要的角色</p>
+<p>ArtMethod结构体</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/53.png" alt="image-20220613154044296"></p>
+<p>我们通过ArtMethod可以获得codeitem的偏移和方法索引，熟悉dex结构的朋友知道codeitem就是代码实际的值，而codeitem则再后续加壳技术扮演了至关重要的地址，而且ArtMethod还有非常丰富的方法，可以帮助大家实现很多功能，所以在脱壳工作中也是十分重要的</p>
+<h2 id="五、脱壳技术归纳"><a href="#五、脱壳技术归纳" class="headerlink" title="五、脱壳技术归纳"></a>五、脱壳技术归纳</h2><p>前面分析了很多，最后无非整体加壳的脱壳方案落脚在DexFile的关键对象上，由此产生了一些常用的方法</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/54.png" alt="image-20220613154906679"></p>
+<h3 id="1-现有工具脱壳法"><a href="#1-现有工具脱壳法" class="headerlink" title="1.现有工具脱壳法"></a>1.现有工具脱壳法</h3><p>工欲善其事必先利其器，整体加壳已经很多年，不少的大佬们都开发了很多非常好用的工具，我们在自己掌握原理过程时，平时工作中也可以使用很多大佬的开发工具，这里随便举几个自己经常用的工具，这里我对各个大佬的脱壳工具进行了一个梳理</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/55.png" alt="image-20220613154906679"></p>
+<h4 id="（1）FRIDA-DEXDump"><a href="#（1）FRIDA-DEXDump" class="headerlink" title="（1）FRIDA-DEXDump"></a>（1）FRIDA-DEXDump</h4><p>这是葫芦娃大佬开发的针对整体加壳的工具，主要通过frida技术，文章参考：<a target="_blank" rel="noopener" href="https://www.anquanke.com/post/id/221905">深入 FRIDA-DEXDump 中的矛与盾</a>，该工具的特点是一般的hook方案通过直接搜索DEX的头文件dex.035来定位dex的起始地址，但是后来不少公司对头文件的魔术字段进行了抹除，这样针对没有文件头的 <code>DEX</code> 文件，该工具通过map_off 找到 DEX 的 map_list， 通过解析它，并得到类型为 TYPE_MAP_LIST 的条目计算出文件的大小和起始地址，也很好的提供了一种解决思路。</p>
+<p>使用方法：</p>
+<p>FRIDA-DEXDump使用十分的简单，详细参考github：<a target="_blank" rel="noopener" href="https://github.com/hluwa/frida-dexdump">FRIDA-DEXDump</a></p>
+<p>这里引用一张大佬星球的使用流程图，非常详细，快速进行脱壳</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/56.png" alt="image-20220613161015961"></p>
+<p>我们简单演示一下，这里结合objection一起使用</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/99.png" alt="image-20220613224143108"></p>
+<p>然后再次打开脱下来的dex，即可 </p>
+<h4 id="（2）FDex2"><a href="#（2）FDex2" class="headerlink" title="（2）FDex2"></a>（2）FDex2</h4><p>Fdex2主要是利用Android7.0及版本以下的特殊API <code>getDex()</code>来进行脱壳，原本是基于Xposed的模块，不过掌握原理后，大家可以使用各种Hook框架去实现,参考链接：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-224105.htm">安卓xposed脱壳工具FDex2 </a></p>
+<h4 id="（3）其他工具"><a href="#（3）其他工具" class="headerlink" title="（3）其他工具"></a>（3）其他工具</h4><p>针对整体壳的脱壳工具有很多，无非是针对各种脱壳点再采用不同的方法，其原理是殊途同归，而基于源码定制的Fart、youpk等等针对整体加壳壳都可以基本实现完全的脱壳，而且抽取壳也有着很好的效果，下面我们就依次来讲述具体的脱壳方法原理，各种脱壳工具如下图所示：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/57.png" alt="image-20220613162509955"></p>
+<h3 id="2-Hook脱壳法"><a href="#2-Hook脱壳法" class="headerlink" title="2.Hook脱壳法"></a>2.Hook脱壳法</h3><p>我们前面知道了，只要函数中包含DexFile对象，我们就可以通过Hook技术拿到对象，然后取到begin和size，从而进行脱壳，市面上使用较多的无非是Xposed和frida，我平时使用frida较为方便，这里也用frida和大家演示：</p>
+<p>首先我们使用GDA识别加壳程序</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/58.png" alt="image-20220613164418413"></p>
+<p>很明显是进行了整体加壳，有没其他加壳暂时不知道，我们先进行脱壳</p>
+<p>找到脱壳点</p>
+<p>通过IDA打开<code>libart.so</code>，搜索DexFile，我们可以找到海量的脱壳点</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/59.png" alt="image-20220613164747966"></p>
+<p>我们就随便找一个包含DexFile的脱壳函数，然后记录符号值</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/60.png" alt="image-20220613164841377"></p>
+<p>然后我们编写hook脚本</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/62.png" alt="image-20220613172003659"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">这里之所以获取begin加上一个指针，是因为我们前面讲了dexfile含有一个虚函数地址，所以加上一个指针偏移</span><br></pre></td></tr></table></figure>
+
+<p>然后启动frida_server</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/61.png" alt="image-20220613170608657"></p>
+<p>附加进程进行dump，这里我们存在sdcard下面，所以需要提前赋予sdcard权限</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/63.png" alt="image-20220613172109177"></p>
+<p>这里就脱壳成功</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/64.png" alt="image-20220613172222202"></p>
+<p>然后我们打开相应的dex</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/65.png" alt="image-20220613172222202"></p>
+<p>此时说明我们整体脱壳成功，不过应用还有抽取壳，这个不是本文解决的内容</p>
+<h3 id="3-插桩脱壳法"><a href="#3-插桩脱壳法" class="headerlink" title="3.插桩脱壳法"></a>3.插桩脱壳法</h3><p>插桩脱壳法，就是在Android源码里面定位到相应的脱壳点，然后插入相应的代码，重新编译源码生成系统镜像，最后就可以使用定制的系统进行脱壳</p>
+<p>我们在<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269575.htm">源码编译（1）——Android6.0源码编译详解</a>中已经讲述了如何编译源码，接下来我们进行插桩脱壳</p>
+<p>同理、还是定位脱壳点，我们还是随便定位一个脱壳点LoadMethod 然后进行插桩</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/98.png" alt="image-20220613220518548"></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//add</span></span><br><span class="line"><span class="type">char</span> dexfilepath[<span class="number">100</span>]=<span class="number">0</span>;</span><br><span class="line"><span class="built_in">memset</span>(dexfilepath,<span class="number">0</span>,<span class="number">100</span>);</span><br><span class="line"><span class="built_in">sprintf</span>(dexfilepath,<span class="string">&quot;%d_%zu_LoadMethod.dex&quot;</span>,<span class="built_in">getpid</span>(),dex_file.<span class="built_in">Size</span>());</span><br><span class="line"><span class="type">int</span> dexfd = <span class="built_in">open</span>(dexfilepathm,O_CREAT|O_RDWR,<span class="number">666</span>);</span><br><span class="line"><span class="keyword">if</span>(dexfd&gt;<span class="number">0</span>)&#123;</span><br><span class="line">	<span class="type">int</span> result = <span class="built_in">write</span>(dexfd,dex_file.<span class="built_in">Begin</span>(),dex_file.<span class="built_in">Size</span>());</span><br><span class="line">	<span class="keyword">if</span>(result&gt;<span class="number">0</span>)&#123;</span><br><span class="line">		<span class="built_in">close</span>(dexfd);</span><br><span class="line">		<span class="built_in">LOG</span>(WARNING)&lt;&lt;<span class="string">&quot;LoadMethod&quot;</span>&lt;&lt;dexfilepath;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//add</span></span><br></pre></td></tr></table></figure>
+
+<p>同理我们在<code>execute</code>同样插桩此段代码，最后进行编译，编译成功</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/66.png" alt="image-20220613172222202"></p>
+<p>然后给程序授权sdcard权限，再次启动应用，就可以看见脱取的dex文件就保存在sdcard目录下</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/97.png" alt="image-20220613215956911"></p>
+<p>再次将sdcard下dex文件打开，这里我们已经看见了8732435这个文件，再次打开脱取成功</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/65.png" alt="image-20220613172222202"></p>
+<h3 id="4-反射脱壳法"><a href="#4-反射脱壳法" class="headerlink" title="4.反射脱壳法"></a>4.反射脱壳法</h3><p>反射脱壳法的核心思想就是利用前面我们提到的mCooike值</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">核心思路：反射 + mCookie</span><br><span class="line">步骤：</span><br><span class="line"><span class="number">1</span>、找到加固apk的任一class，一般选择主Application或Activity</span><br><span class="line"><span class="number">2</span>、通过该类找到对应的Classloader</span><br><span class="line"><span class="number">3</span>、通过该Classloader找到BaseDexClassLoader</span><br><span class="line"><span class="number">4</span>、通过BaseDexClassLoader找到其字段DexPathList</span><br><span class="line"><span class="number">5</span>、通过DexPathList找到其变量Element数组dexElements</span><br><span class="line"><span class="number">6</span>、迭代该数组，该数组内部包含DexFile结构</span><br><span class="line"><span class="number">7</span>、通过DexFile获取其变量mCookie和mFileName</span><br><span class="line"> </span><br><span class="line">至此我们已经获取了mCookie</span><br><span class="line"> </span><br><span class="line">对该mCookie的解释:</span><br><span class="line">#<span class="number">1</span>、<span class="number">4.4</span>以下好像，mCookie对应的是一个<span class="type">int</span>值，该值是指向<span class="keyword">native</span>层内存中的dexfile的指针</span><br><span class="line">#<span class="number">2</span>、<span class="number">5.0</span>是一个<span class="type">long</span>值，该值指向<span class="keyword">native</span>层std::vector&lt;const DexFile*&gt;* 指针，注意这里有多个dex，你需要找到你要的</span><br><span class="line">#<span class="number">3</span>、<span class="number">8.0</span>，该值也是一个<span class="type">long</span>型的值，指向底层vector，但是vector下标<span class="number">0</span>是oat文件，从<span class="number">1</span>开始是dex文件</span><br><span class="line"><span class="comment">// 至于你手机是那个版本，如果没有落入我上面描述的，你需要自己看看代码</span></span><br><span class="line"> </span><br><span class="line"><span class="number">8</span>、根据mCookie对应的值做转换，最终你能找到dexfile内存指针</span><br><span class="line"><span class="number">9</span>、把该指针转换为dexfile结构，通过findClassDef来匹配你所寻找的dex是你要的dex</span><br><span class="line"><span class="number">10</span>、dump写文件</span><br></pre></td></tr></table></figure>
+
+<p>综述mCookie是在native层就是dexfile的指针，我们利用反射原理来获取mCookie，从而就可以进行脱壳了，这里我们同样使用frida演示：</p>
+<p>编写hook代码</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/67.png" alt="image-20220613190231102"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/68.png" alt="image-20220613190303491"></p>
+<p>我们看见了和上面同样大小的8841876_mCookie.dex</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/69.png" alt="image-20220613190401266"></p>
+<p>使用工具打开，发现同样脱壳成功</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/70.png" alt="image-20220613190438224"></p>
+<h3 id="5-动态调试脱壳法"><a href="#5-动态调试脱壳法" class="headerlink" title="5.动态调试脱壳法"></a>5.动态调试脱壳法</h3><p>所谓动态调试法，核心原理和上面一样，就是我们在动态调试的过程中找到DexFile的起始地址和大小，然后执行脚本进行dump</p>
+<p>首先选取脱壳点，我们还是选择<code>DexFile::DexFile</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/90.png" alt="image-20220613210130186"></p>
+<p>动态调试的步骤我在前面的文章中已经做了详细的讲解，不会的朋友去看前面的文章</p>
+<p>首先我们启动android_server</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/81.png" alt="image-20220613194111711"></p>
+<p>然后我们附加上进程</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/82.png" alt="image-20220613194326114"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/83.png" alt="image-20220613195349008"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/86.png" alt="image-20220613203024990"></p>
+<p>然后我们打开libart.so，并定位到DexFile::DexFile</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/91.png" alt="image-20220613210859021"></p>
+<p>然后在该函数下断点，然后F9过来</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/92.png" alt="image-20220613211145356"></p>
+<p>此处我们就可以很明显看到X1就是我们的起始地址，X4是我们的偏移值</p>
+<p>编写脚本进行hook</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="title">main</span><span class="params">(<span class="type">void</span>)</span></span>&#123;    </span><br><span class="line"> <span class="keyword">auto</span> fp, begin, end, dexbyte;      </span><br><span class="line"> fp = <span class="built_in">fopen</span>(<span class="string">&quot;d:\\dump.dex&quot;</span>, <span class="string">&quot;wb+&quot;</span>);      </span><br><span class="line"> begin =  <span class="number">0x76FCD93020</span>;    </span><br><span class="line"> end = begin + <span class="number">0x7EEC5600</span>; </span><br><span class="line"> <span class="keyword">for</span> ( dexbyte = begin; dexbyte&lt;end;dexbyte++)</span><br><span class="line"> &#123;</span><br><span class="line"> <span class="built_in">fputc</span>(<span class="built_in">Byte</span>(dexbyte), fp);        </span><br><span class="line"> &#125;   </span><br><span class="line"> </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/93.png" alt="image-20220613214647627"></p>
+<p>直接运行run</p>
+<p>然后我们查看dump.dex文件</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/94.png" alt="image-20220613223330340"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/95.png" alt="image-20220613215148251"></p>
+<p>我们可以发现这里是代理类，还没有到我们想要的dex，我们再次F9，再次到这里，地址再次改变，再次结合长度来计算，我们每次计算可以取小点值，先试一下</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/96.png" alt="image-20220613215343895"></p>
+<p>发现还是不是，我们需要不停测试直到dump出dex为此</p>
+<p>这里大家可以下去按照此方法尝试，或者换一个脱壳点来尝试</p>
+<h3 id="6-特殊API脱壳法"><a href="#6-特殊API脱壳法" class="headerlink" title="6.特殊API脱壳法"></a>6.特殊API脱壳法</h3><p>所谓特殊的API脱壳法就是通过Android自身提供的API来获得Dex，这主要是参考Fdex2，前面我们讲了Fdex2主要是利用Android7.0及以下提供了getDex()和getBytes()两个API，我们可以直接可以获得class对象，然后直接调用这两个API</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/71.png" alt="image-20220613191047342"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/72.png" alt="image-20220613191158377"></p>
+<p>编写hook代码：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/74.png" alt="image-20220613192251923"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">1.使用frida枚举所有Classloader </span><br><span class="line">2.确定正确的ClassLoader并获取目标类的Class对象</span><br><span class="line">3.通过Class对象获取得到dex对象</span><br><span class="line">4.通过dex对象获取内存字节流并保存</span><br></pre></td></tr></table></figure>
+
+<p>然后我们查看程序的类对象，随便dump一个类对象</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/73.png" alt="image-20220613191722932"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/75.png" alt="image-20220613192447143"></p>
+<p>然后我们再次用工具打开</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/76.png" alt="image-20220613192548342"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/77.png" alt="image-20220613192659791"></p>
+<p>发现就可以成功的dump</p>
+<p>通过这种方式，我们发现神奇的事我们还可以抽取壳的情况，比如我们之前为空类</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/78.png" alt="image-20220613192926853"></p>
+<p>我们明显可以发现这里是采用了函数抽取的技术，一般的一代壳dump方案是无法解决抽取壳的，我们使用特殊API方法</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/79.png" alt="image-20220613193028308"></p>
+<p>再次打开，成功dump</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer5/80.png" alt="image-20220613193102209"></p>
+<p>这其实主要是抽取壳的一个回填时机的问题，这个详细放在以后抽取壳中讲解</p>
+<h2 id="六、实验总结"><a href="#六、实验总结" class="headerlink" title="六、实验总结"></a>六、实验总结</h2><p>本文总结了当下dex整体加壳的基本原理，和常用的一些脱壳方案，并一一进行复现，还有一些文件监控法等，由于我平时用的很少就没列举了，复现实验过程中由于涉及到不同的实验，所以我用了Android 6.0 Android 7.0 Android 8.0三台机器进行实验，所以大家可以注意下对应的方法和其Android版本，这里彻底解决了整体加壳的脱壳方案，到这里可以掌握脱壳、抓包、Hook、反Hook、反调、反签等基本手段，这样在进行Android App漏洞挖掘过程中将事半功倍。后面我将继续讲解Android App漏洞中的XSS漏洞、Sql注入漏洞、文件上传漏洞、端口扫描漏洞、WebView漏洞等。</p>
+<p>脱壳脚本相关样本会放在github，所有的脱壳脚本和工具和上传知识星球</p>
+<p>github：<a target="_blank" rel="noopener" href="https://github.com/WindXaa">github</a></p>
+<h2 id="七、参考文献"><a href="#七、参考文献" class="headerlink" title="七、参考文献"></a>七、参考文献</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">https://bbs.pediy.com/thread-252630.htm#msg_header_h2_4</span><br><span class="line">https://bbs.pediy.com/thread-254555.htm#msg_header_h2_4</span><br><span class="line">https://www.anquanke.com/post/id/221905?display=mobile</span><br><span class="line">https://www.qj301.com/news/317.html</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2022/12/04/Packer5/" title="Android加壳与脱壳（5）——整体加壳原理和脱壳技巧详解">http://security-kitchen.com/2022/12/04/Packer5/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/" rel="tag"># 逆向技术</a>
+              <a href="/tags/%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/" rel="tag"># 加壳与脱壳</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/04/Packer4/" rel="prev" title="Android加壳与脱壳（4）—— 一代壳脱壳工具集">
+      <i class="fa fa-chevron-left"></i> Android加壳与脱壳（4）—— 一代壳脱壳工具集
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/04/Packer3/" rel="next" title="Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗">
+      Android加壳与脱壳（3）—— 一次加壳恶意应用的对抗 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E7%9B%B8%E5%85%B3%E4%BB%8B%E7%BB%8D"><span class="nav-text">二、相关介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Android-App%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">1.Android App启动流程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89Android%E7%B3%BB%E7%BB%9F%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">（1）Android系统启动流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89App%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">（2）App启动流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89ActivityThread%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">（3）ActivityThread启动流程</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%95%B4%E4%BD%93%E5%8A%A0%E5%A3%B3%E5%8E%9F%E7%90%86%E8%AF%A6%E8%A7%A3"><span class="nav-text">2.整体加壳原理详解</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%95%B4%E4%BD%93%E5%8A%A0%E5%A3%B3%E5%8E%9F%E7%90%86"><span class="nav-text">（1）整体加壳原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E7%B1%BB%E5%8A%A0%E8%BD%BD%E5%99%A8%E7%9A%84%E4%BF%AE%E6%AD%A3"><span class="nav-text">（2）类加载器的修正</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E7%B1%BB%E5%8A%A0%E8%BD%BD%E5%99%A8%E6%9B%BF%E6%8D%A2"><span class="nav-text">&lt;1&gt;类加载器替换</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E7%B1%BB%E5%8A%A0%E8%BD%BD%E5%99%A8%E6%8F%92%E5%85%A5"><span class="nav-text">&lt;2&gt;类加载器插入</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E6%95%B4%E4%BD%93%E5%8A%A0%E5%A3%B3%E6%A1%88%E4%BE%8B%E5%AE%9E%E7%8E%B0"><span class="nav-text">三、整体加壳案例实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E7%BC%96%E5%86%99%E6%BA%90%E7%A8%8B%E5%BA%8F"><span class="nav-text">1.编写源程序</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E7%BC%96%E5%86%99%E5%A3%B3%E7%A8%8B%E5%BA%8F"><span class="nav-text">2.编写壳程序</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C"><span class="nav-text">（1）准备工作</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E7%BC%96%E5%86%99%E4%BB%A3%E7%90%86%E7%B1%BB"><span class="nav-text">（2）编写代理类</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%8A%A8%E6%80%81%E5%8A%A0%E8%BD%BD"><span class="nav-text">（3）动态加载</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E8%84%B1%E5%A3%B3%E7%82%B9%E7%9B%B8%E5%85%B3%E6%A6%82%E5%BF%B5%E8%AF%A6%E8%A7%A3"><span class="nav-text">四、脱壳点相关概念详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Dex%E5%8A%A0%E8%BD%BD%E6%B5%81%E7%A8%8B"><span class="nav-text">1.Dex加载流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Dex2Oat%E7%BC%96%E8%AF%91%E6%B5%81%E7%A8%8B"><span class="nav-text">2.Dex2Oat编译流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%B5%81%E7%A8%8B"><span class="nav-text">3.类加载流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-DexFile%E8%AF%A6%E8%A7%A3"><span class="nav-text">4.DexFile详解</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E7%9B%B4%E6%8E%A5%E6%9F%A5%E6%89%BE%E6%B3%95"><span class="nav-text">（1）直接查找法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E9%97%B4%E6%8E%A5%E6%9F%A5%E6%89%BE%E6%B3%95"><span class="nav-text">（2）间接查找法</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-ArtMethod%E8%AF%A6%E8%A7%A3"><span class="nav-text">5.ArtMethod详解</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E8%84%B1%E5%A3%B3%E6%8A%80%E6%9C%AF%E5%BD%92%E7%BA%B3"><span class="nav-text">五、脱壳技术归纳</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E7%8E%B0%E6%9C%89%E5%B7%A5%E5%85%B7%E8%84%B1%E5%A3%B3%E6%B3%95"><span class="nav-text">1.现有工具脱壳法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89FRIDA-DEXDump"><span class="nav-text">（1）FRIDA-DEXDump</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89FDex2"><span class="nav-text">（2）FDex2</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%85%B6%E4%BB%96%E5%B7%A5%E5%85%B7"><span class="nav-text">（3）其他工具</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Hook%E8%84%B1%E5%A3%B3%E6%B3%95"><span class="nav-text">2.Hook脱壳法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%8F%92%E6%A1%A9%E8%84%B1%E5%A3%B3%E6%B3%95"><span class="nav-text">3.插桩脱壳法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E5%8F%8D%E5%B0%84%E8%84%B1%E5%A3%B3%E6%B3%95"><span class="nav-text">4.反射脱壳法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95%E8%84%B1%E5%A3%B3%E6%B3%95"><span class="nav-text">5.动态调试脱壳法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-%E7%89%B9%E6%AE%8AAPI%E8%84%B1%E5%A3%B3%E6%B3%95"><span class="nav-text">6.特殊API脱壳法</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">六、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">七、参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

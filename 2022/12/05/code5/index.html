@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="1.前言本文为源码定制学习的root指纹抹除篇，通过本文的学习，读者可以掌握Android指纹的基本定制能力和root定制能力，本文参考了看雪大佬应用root检测通杀篇，为实验记录笔记。有问题，可以一一指出：">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android源码定制（5）——root指纹定制与抹除">
+<meta property="og:url" content="http://security-kitchen.com/2022/12/05/code5/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="1.前言本文为源码定制学习的root指纹抹除篇，通过本文的学习，读者可以掌握Android指纹的基本定制能力和root定制能力，本文参考了看雪大佬应用root检测通杀篇，为实验记录笔记。有问题，可以一一指出：">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/1.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/2.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/4.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/5.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/6.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/7.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/9.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/10.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/11.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/12.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/13.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/14.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/15.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/16.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/17.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/18.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/19.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/20.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/21.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/22.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/23.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/24.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/25.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/26.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/49.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/48.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/50.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/27.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/28.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/29.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/30.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/31.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/32.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/33.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/35.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/34.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/36.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/37.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/40.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/38.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/39.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/41.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/42.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/43.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/44.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/45.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/53.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/47.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/51.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/58.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/52.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/5.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/56.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/57.png">
+<meta property="article:published_time" content="2022-12-05T09:21:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.115Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="逆向技术">
+<meta property="article:tag" content="root">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2022/12/05/code5/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android源码定制（5）——root指纹定制与抹除 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2022/12/05/code5/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android源码定制（5）——root指纹定制与抹除
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-05 17:21:19" itemprop="dateCreated datePublished" datetime="2022-12-05T17:21:19+08:00">2022-12-05</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android%E6%BA%90%E7%A0%81%E5%AE%9A%E5%88%B6/" itemprop="url" rel="index"><span itemprop="name">Android源码定制</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="1-前言"><a href="#1-前言" class="headerlink" title="1.前言"></a>1.前言</h2><p>本文为源码定制学习的root指纹抹除篇，通过本文的学习，读者可以掌握Android指纹的基本定制能力和root定制能力，本文参考了看雪大佬<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-273485.htm">应用root检测通杀篇</a>，为实验记录笔记。有问题，可以一一指出：</p>
+<span id="more"></span>
+
+<p>本文第二节主要讲述基本原理</p>
+<p>本文第三节主要讲述实验</p>
+<p>本文第四节主要为总结</p>
+<h2 id="2-基础知识"><a href="#2-基础知识" class="headerlink" title="2.基础知识"></a>2.基础知识</h2><h3 id="2-1-指纹解析"><a href="#2-1-指纹解析" class="headerlink" title="2.1 指纹解析"></a>2.1 指纹解析</h3><p>需要对Android指纹进行修改，最重要是明白<code>build.prop</code>的参数含义，这里截取网上文章中的一部分，方便大家理解：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br></pre></td><td class="code"><pre><span class="line"># begin build properties （开始设置系统性能）</span><br><span class="line"># autogenerated （通过设置形成系统信息）</span><br><span class="line">ro.=GRI40 (版本ID)</span><br><span class="line">ro.build.=GRJ22 （版本号）</span><br><span class="line">ro.build.version.incremental=eng.buildbot<span class="number">.20110619</span><span class="number">.060228</span> （版本增量）</span><br><span class="line">ro.build.version.sdk=<span class="number">10</span> （sdk版本）</span><br><span class="line">ro.build.version.codename=REL （版本代号）</span><br><span class="line">ro.build.version.release=<span class="number">2.3</span><span class="number">.4</span> （Android <span class="number">2.3</span><span class="number">.4</span>系统）</span><br><span class="line">ro.build.date=Sun Jun <span class="number">19</span> <span class="number">06</span>:<span class="number">02</span>:<span class="number">58</span> UTC <span class="number">2011</span> （制作者及制作时间）</span><br><span class="line">ro.build.date.utc=<span class="number">0</span></span><br><span class="line">ro.build.type=user (编译模式,如user,userdebug,eng,test模式)</span><br><span class="line">ro.build.user=buildbot (编译账户)</span><br><span class="line">ro.build.host=bb1 (编译主机系统)</span><br><span class="line">ro.build.tags=test-keys (编译标签)</span><br><span class="line">ro.product.model=HTC Wildfire （HTC内部手机代号）</span><br><span class="line">ro.product.brand=htc_wwe （手机品牌）</span><br><span class="line">ro.product.name=htc_buzz （手机正式名称）</span><br><span class="line">ro.product.device=buzz （采用的设备）</span><br><span class="line">ro.product.board=buzz （采用的处理器）</span><br><span class="line">ro.product.cpu.abi=armeabi-v6j （cpu的版本）</span><br><span class="line">ro.product.cpu.abi2=armeabi （cpu的品牌）</span><br><span class="line">ro.product.manufacturer=HTC （手机制造商）</span><br><span class="line">ro.product.locale.language=zh （手机默认语言）</span><br><span class="line">ro.product.locale.region=CN （地区语言）</span><br><span class="line">ro.wifi.channels= （WIFI连接的渠道）</span><br><span class="line">ro.board.platform=msm7k （主板平台）</span><br><span class="line"># ro.build.product is obsolete; use ro.product.device （旧代码ro.build.product，使用代码ro.product.device）</span><br><span class="line">ro.build.product=buzz （建立产品）</span><br><span class="line"># Do not <span class="keyword">try</span> to parse ro.build.description or .fingerprint （不要试图修改description和fingerprint）</span><br><span class="line">ro.build.description=passion-user <span class="number">2.3</span><span class="number">.3</span> GRI40 <span class="number">102588</span> release-keys （用户的KEY）</span><br><span class="line">ro.build.fingerprint=google/passion/passion:<span class="number">2.3</span><span class="number">.3</span>/GRI40/<span class="number">102588</span>:user/release-keys （系统指纹）</span><br><span class="line"># end build properties （性能代码完毕）</span><br><span class="line">#</span><br><span class="line"># system.prop <span class="keyword">for</span> buzz （系统技术支持由BUZZ提供）</span><br><span class="line">#</span><br><span class="line"># Density in DPI of the LCD of <span class="built_in">this</span> board. This is used to scale the UI （高密度的液晶的DPI板。这是用来大规模UI的）</span><br><span class="line"># appropriately. If <span class="built_in">this</span> property is not defined, the <span class="keyword">default</span> value is <span class="number">160</span> dpi. （appropriately.如果这个属性没有定义,缺省值是<span class="number">160</span> dpi的分辨率）</span><br><span class="line">ro.sf.lcd_density=<span class="number">240</span> （显示屏分辨率，数值越大分辨率越底，<span class="number">240</span>就是<span class="number">800</span>*<span class="number">480</span>的）</span><br><span class="line"># View configuration <span class="keyword">for</span> QVGA. （屏幕的设置）</span><br><span class="line">view.fading_edge_length=<span class="number">8</span></span><br><span class="line">view.touch_slop=<span class="number">15</span> （触摸屏灵敏度，数值越大越灵敏）</span><br><span class="line">view.minimum_fling_velocity=<span class="number">25</span> （滑动速度）</span><br><span class="line">view.scroll_friction=<span class="number">0.008</span> （滑动误差）</span><br><span class="line"># RIL specific configuration. （特定设置）</span><br><span class="line">rild.libpath=/system/lib/libhtc_</span><br><span class="line">ro.ril.ecc.HTC-WWE=<span class="number">999</span></span><br><span class="line">ro.ril.ecc.HTC-ELL=<span class="number">92</span>,<span class="number">93</span>,<span class="number">94</span></span><br><span class="line">ro.ril.enable.a52.HTC-ITA=<span class="number">1</span></span><br><span class="line">ro.ril.enable.a53.HTC-ITA=<span class="number">1</span></span><br><span class="line">ro.ril.enable.a52=<span class="number">0</span></span><br><span class="line">ro.ril.enable.a53=<span class="number">1</span></span><br><span class="line">ro.ril.vmail<span class="number">.23415</span>=<span class="number">1571</span>,BT</span><br><span class="line">ro.ril.hsdpa.category=<span class="number">8</span> （hsdpa全称High Speed Downlink Packet Access中文意思：高速下行分组接入,设置的数越大传输越快）</span><br><span class="line">ro.ril.htcmaskw1.bitmask=<span class="number">429496</span></span><br><span class="line">ro.ril.htcmaskw1=<span class="number">14449</span></span><br><span class="line">ro.ril.def.agps.mode=<span class="number">2</span> （打开AGPS服务支持，可改为ro.ril.def.agps.mode=<span class="number">0</span> 改后能省电但GPS定位速度会变慢）</span><br><span class="line">ro.ril.gprsclass=<span class="number">12</span> （GPRS设置）</span><br><span class="line"># For HSDPA low throughput （HSDPA低输量）</span><br><span class="line">ro.ril.disable.power.collapse=<span class="number">1</span> （关闭电源）</span><br><span class="line"># Modify MMS APN retry timer from 5s to 2s. （修改短信的APN设置<span class="number">5</span>秒为<span class="number">2</span>秒）</span><br><span class="line">ro.gsm.2nd_data_retry_config=max_retries=<span class="number">3</span>, <span class="number">2000</span>, <span class="number">2000</span>, <span class="number">2000</span></span><br><span class="line"># Time between scans in seconds. Keep it high to minimize battery drain.（扫描在几秒之内，可降低用电量）</span><br><span class="line"># This only affects the <span class="keyword">case</span> in which there are remembered access points, （这个修改仅能影响此文件）</span><br><span class="line"># but none are in range.（但是没有一项是在范围内的）</span><br><span class="line">wifi.interface=eth0 （WIFI界面）</span><br><span class="line">wifi.supplicant_scan_interval=<span class="number">45</span> （WIFI扫描间隔时间，这里设置是<span class="number">45</span>秒。把这个时间设置长点能省电）</span><br><span class="line"># Mobile data interfaces （移动数据的接口）</span><br><span class="line">mobiledata.interfaces=rmnet0,rmnet1,rmnet2</span><br><span class="line"># Allow or deny tethering. （允许和拒绝绑定）</span><br><span class="line">ro.tether.denied=<span class="literal">false</span></span><br><span class="line"># Default network type. （默认的网络类型）</span><br><span class="line"># <span class="number">0</span> =&gt; WCDMA Preferred. （<span class="number">0</span>=WCDMA优先）</span><br><span class="line">ro.telephony.default_network=<span class="number">0</span></span><br><span class="line"># Enable Google-specific location features, （谷歌特定地点的设置）</span><br><span class="line"># like NetworkLocationProvider and LocationCollector.（如网络服务器提供商和服务器位置）</span><br><span class="line">ro.c o m.google.locationfeatures=<span class="number">1</span></span><br><span class="line"># The OpenGL ES API level that is natively supported by <span class="built_in">this</span> device. （开放式绘图介面）</span><br><span class="line"># This is a <span class="number">16.16</span> fixed point number. （界面有<span class="number">16</span>个点，<span class="number">16</span>个不动点数量）</span><br><span class="line">ro.opengles.version=<span class="number">65536</span> （开放式绘图介面参数）</span><br><span class="line"># Disable fs check on boot by <span class="keyword">default</span>. （开机时默认禁用FS检查）</span><br><span class="line">sys.checkfs.fat=<span class="literal">false</span></span><br><span class="line"># Performance settings. （性能设置）</span><br><span class="line">dalvik.vm.execution-mode=<span class="type">int</span>:jit</span><br><span class="line">dalvik.vm.heapsize=24m （虚拟内存大小，可设置为16m或24m或32m或48m）</span><br><span class="line">persist.sys.use_dithering=<span class="number">1</span></span><br><span class="line">persist.sys.purgeable_assets=<span class="number">1</span></span><br><span class="line"># Increase SKIA decode memory capability <span class="keyword">for</span> progressive jpg file.</span><br><span class="line">ro.media.dec.jpeg.memcap=<span class="number">20000000</span></span><br><span class="line">#</span><br><span class="line"># ADDITIONAL_BUILD_PROPERTIES （其他性能设置）</span><br><span class="line">no_require_sim=<span class="literal">true</span> （手机卡保护设置）</span><br><span class="line">ro.rommanager.developerid=cyanogenmodnightly （固件管理器开发者是CM大神）</span><br><span class="line">ro.url.legal=http:<span class="comment">//www./intl/%s/mobile/android/basic/phone-legal.html</span></span><br><span class="line">ro.url.legal.android_privacy=http:<span class="comment">//www]/intl/%s/mobile/android/basic/privacy.html</span></span><br><span class="line">ro. com.google.clientidbase=android-google （谷歌客户身份）</span><br><span class="line">ro. com.android.wifi-watchlist=GoogleGuest （WIFI用户名单）</span><br><span class="line">ro.setupwizard.enterprise_mode=<span class="number">1</span> （默认情景模式）</span><br><span class="line">ro. com.android.dateformat=MM-dd-yyyy （默认时间格式，改为yyyy-MM-dd，显示效果就是XXXX年XX月XX日）</span><br><span class="line">ro. com.android.dataroaming=<span class="literal">false</span> （漫游设置）</span><br><span class="line">ro.config.ringtone=Playa.ogg （默认铃声设置，文件在/system/media/audio/ringtones 把喜欢的铃声放这里，比如<span class="number">123.</span> MP3放入ringtones文件夹中，这里代码改为ro.config.ringtone=<span class="number">123.</span> mp3）</span><br><span class="line">ro.config.notification_sound=regulus.ogg （默认提示音，文件在/system/media/audio/notifications 修改方法同上）</span><br><span class="line">ro.config.alarm_alert=Alarm_Beep_03.ogg （默认闹铃，文件在/system/media/audio/alarms 修改方法同上）</span><br><span class="line">ro.modversion=CyanogenMod-<span class="number">7</span>-06192011-NIGHTLY-buzz （版本信息，改这个能让你大名出现系统关于中，改为ro.modversion=xxxxx）</span><br><span class="line">ro.setupwizard.mode=OPTIONAL （安装向导模式）</span><br><span class="line">net. bt. name=Android （系统名称）</span><br><span class="line">dalvik.vm.stack-trace-file=/data/anr/traces.txt </span><br></pre></td></tr></table></figure>
+
+<p>参考文章：<a target="_blank" rel="noopener" href="https://www.jianshu.com/p/dd6cca4ec27d">Android系统build.prop文件生成过程</a></p>
+<p>后面我们要修改设备的指纹，主要关注两个文件：<code>buildinfo.sh</code>和<code>Makefile</code></p>
+<h3 id="2-2-root检测方式"><a href="#2-2-root检测方式" class="headerlink" title="2.2 root检测方式"></a>2.2 root检测方式</h3><p>一般Android 上root检测的基本方式包含：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">（1）检查su命令是否存在</span><br><span class="line">（2）检查常用目录是否存在su（或检测是否存在s权限的文件）</span><br><span class="line">（3）使用which命令查看是否存在su</span><br><span class="line">（4）主动申请root权限</span><br><span class="line">（5）执行busybox</span><br><span class="line">（6）检查Android属性（读取build.prop中关键属性，如ro.build.tags和ro.build.type）</span><br><span class="line">（7）检查特定路径是否有写权限（在Android系统中，有些目录是普通用户不能访问的，例如/data、/system、/etc等）</span><br><span class="line">（8）检查市面主流的模拟器</span><br><span class="line">（9）检测frida、xposed等Hook框架的特征</span><br></pre></td></tr></table></figure>
+
+<p>具体可以分为：Android root的系统指纹、root的路径指纹、root的执行操作、第三方工具等</p>
+<p>参考文章：<a target="_blank" rel="noopener" href="http://lzonel.cn/3136.html">修改ROM实现自定义su命令-root检测通杀</a>，这里给出了一些基本的root检测指纹：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">1.detectRootManagementApps—检测常见su包名,如&#123;“com.noshufou.android.su”, “com.noshufou.android.su.elite”, “eu.chainfire.supersu”, “com.koushikdutta.superuser”, “com.thirdparty.superuser”, “com.yellowes.su”, “com.topjohnwu.magisk”, “com.kingroot.kinguser”, “com.kingo.root”, “com.smedialink.oneclickroot”, “com.zhiqupk.root.global”, “com.alephzain.framaroot”&#125;</span><br><span class="line"></span><br><span class="line">2.detectPotentiallyDangerousApps—&#123;“com.koushikdutta.rommanager”, “com.koushikdutta.rommanager.license”, “com.dimonvideo.luckypatcher”, “com.chelpus.lackypatch”, “com.ramdroid.appquarantine”, “com.ramdroid.appquarantinepro”, “com.android.vending.billing.InAppBillingService.COIN”, “com.android.vending.billing.InAppBillingService.LUCK”, “com.chelpus.luckypatcher”, “com.blackmartalpha”, “org.blackmart.market”, “com.allinone.free”, “com.repodroid.app”, “org.creeplays.hack”, “com.baseappfull.fwd”, “com.zmapp”, “com.dv.marketmod.installer”, “org.mobilism.android”, “com.android.wp.net.log”, “com.android.camera.update”, “cc.madkite.freedom”, “com.solohsu.android.edxp.manager”, “org.meowcat.edxposed.manager”, “com.xmodgame”, “com.cih.game_cih”, “com.charles.lpoqasert”, “catch_.me_.if_.you_.can_”&#125;</span><br><span class="line"></span><br><span class="line">3.detectRootCloakingApps—&#123;“com.devadvance.rootcloak”, “com.devadvance.rootcloakplus”, “de.robv.android.xposed.installer”, “com.saurik.substrate”, “com.zachspong.temprootremovejb”, “com.amphoras.hidemyroot”, “com.amphoras.hidemyrootadfree”, “com.formyhm.hiderootPremium”, “com.formyhm.hideroot”&#125;</span><br><span class="line"></span><br><span class="line">4.suPath—遍历执行可能存在的su文件夹,如&#123;“/data/local/”, “/data/local/bin/”, “/data/local/xbin/”, “/sbin/”, “/su/bin/”, “/system/bin/”, “/system/bin/.ext/”, “/system/bin/failsafe/”, “/system/sd/xbin/”, “/system/usr/we-need-root/”, “/system/xbin/”, “/cache/”, “/data/”, “/dev/”&#125;</span><br><span class="line"></span><br><span class="line">5.checkForDangerousProps—检查一些属性的值.&#123;ro.debuggable”, “1”&#125;,&#123;“ro.secure”, “0”&#125;</span><br><span class="line"></span><br><span class="line">6.checkForRWPaths—先执行(需要root)mount如果返回true然后再查看是否有读写权限&#123;“/system”, “/system/bin”, “/system/sbin”, “/system/xbin”, “/vendor/bin”, “/sbin”, “/etc”&#125;</span><br><span class="line"></span><br><span class="line">7.detectTestKeys—查看编译类型是否为 &#123;“test-keys”&#125;</span><br><span class="line"></span><br><span class="line">8.checkBuildProp—检查Buildprop的值,&#123;“ro.build.display.id”,”ro.build.version.incremental”,”ro.build.date”,”ro.build.date.utc”,”ro.build.type”,”ro.build.user”,”ro.build.flavor”,”ro.build.tags”,”ro.build.description”,”ro.build.fingerprint”,”ro.product.model”,”ro.product.brand”,”ro.product.name”&#125;</span><br><span class="line"></span><br><span class="line">9.checkSuExists—执行su,看看能否执行成功</span><br><span class="line"></span><br><span class="line">10.checkForRootNative—Native层root检查</span><br><span class="line"></span><br><span class="line">11.checkForMagiskBinary—检测是否存在Magisk-&#123;“/data/local/”, “/data/local/bin/”, “/data/local/xbin/”, “/sbin/”, “/su/bin/”, “/system/bin/”, “/system/bin/.ext/”, “/system/bin/failsafe/”, “/system/sd/xbin/”, “/system/usr/we-need-root/”, “/system/xbin/”, “/cache/”, “/data/”, “/dev/”&#125;</span><br></pre></td></tr></table></figure>
+
+<p>具体的大家可以参考原文</p>
+<p>我在前面的文章：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-272452.htm">Android漏洞之战调试与反调试</a>也用真实的代码进行了展演示，这里大家可以进行参考</p>
+<h2 id="3-实验"><a href="#3-实验" class="headerlink" title="3.实验"></a>3.实验</h2><p>实验环境：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">pixel Android8.0.1</span><br><span class="line">Ubuntu 18</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-1-user版本的编译"><a href="#3-1-user版本的编译" class="headerlink" title="3.1 user版本的编译"></a>3.1 user版本的编译</h3><p>首先，我们编译user版本的镜像，里我需要编译的目标版本是<code>aosp_sailfish-user</code>，那么在编译的选项中是没有这一项的，根据<code>lunch</code>命令列出的文件，随意找一个文件进行修改，我们以<code>device/google/marlin/vendorsetup.sh</code>文件为例，进行修改</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">source build/envsetup.sh</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/1.png" alt="image-20221109204852615"></p>
+<p>我们随便打开一个配置文件进行添加，例如这里我们打开配置文件<code>device/google/marlin/vendorsetup.sh</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vim device/google/marlin/vendorsetup.sh</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/2.png" alt="image-20221109205524780"></p>
+<p>我们也可以发现之前的userdebug版本声明也在这里面</p>
+<p>然后我们再次初始化并选择设备：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">source build/envsetup.sh</span><br><span class="line">lunch</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/4.png" alt="image-20221109205802480"></p>
+<p>可以发现此时我们就多了user版本，然后我们选择该版本</p>
+<p>编译：make -j4</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/5.png" alt="image-20221109214415835"></p>
+<p>编译完成</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/6.png" alt="image-20221109214957961"></p>
+<p>我们可以发现现在就是user的版本，也没有root权限，和我们平时使用的手机一样</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/8.png" alt="image-20221110152811681"></p>
+<p>这里我们在网上找一个root检测工具，我们可以发现此时的手机是未经过root的</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/7.png" alt="image-20221110152717522"></p>
+<p>尽管我们现在编译的是user版本，但是我们试验了一些测试的APP，发现其中有一些APP还是检测系统含有root，经过分析我们发现，无论是user编译还是user-debug编译，我们的系统签名都使用的是test-key，而我们真正的手机一般是release-key签名后发布的，所以很多APP将这里作为检测点</p>
+<p>这里有两种方案：</p>
+<p>（1）编译release-key版本的系统</p>
+<p>由于后面我们还要开展指纹抹除实验，所以这里给大家推荐一个文章，想要实现可以去试下：<a target="_blank" rel="noopener" href="https://blog.csdn.net/u010142437/article/details/78030485">Android——编译release版签名系统</a></p>
+<p>（2）修改指纹</p>
+<p>我们这里为了简单的实验，后面在实验中将这里的进行抹除</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">test-keys---&gt;release-keys</span><br></pre></td></tr></table></figure>
+
+<p>然后为了开展后面的实现，我们尝试拿到user版本的指纹，由于此时无法root，所以无法查看 <code>/system/build.prop</code>的信息，所以我们直接对设备进行root</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">8.0刷入root步骤：</span><br><span class="line">	（1）刷入twrp</span><br><span class="line">	（2）使用twrp刷入Magisk</span><br><span class="line">既可以获得root</span><br></pre></td></tr></table></figure>
+
+<p>针对Android8.0的设备获得root，最方便的便是刷入Magisk</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/9.png" alt="image-20221110154909267"></p>
+<p>此时我们再次查看设备的指纹：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/10.png" alt="image-20221110155025196"></p>
+<p>可以发现此时我们可以找到指纹，这里我们保存该指纹信息</p>
+<h3 id="3-2-userdebug版本编译"><a href="#3-2-userdebug版本编译" class="headerlink" title="3.2 userdebug版本编译"></a>3.2 userdebug版本编译</h3><p>我们按上面的编译步骤选择userdebug版本</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/11.png" alt="image-20221110160816195"></p>
+<p>我们可以发现userdebug的指纹明显不一样，此时我们再查看一下</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/12.png" alt="image-20221110161516506"></p>
+<h3 id="3-3-root指纹抹除"><a href="#3-3-root指纹抹除" class="headerlink" title="3.3 root指纹抹除"></a>3.3 root指纹抹除</h3><p>前面我们分别对user版和debug版的系统进行了分析，相应不少朋友应对一些常见的root检测的应用进行处理，那能不能即获得root的操作，又拥有user一样的镜像呢，这里我们就需要对root进行定制和指纹抹除</p>
+<p>首先我们用文件对比工具来进行比较：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/13.png" alt="image-20221110162806579"></p>
+<p>我们只需要将这些差异的地方一一进行修改即可</p>
+<p><strong>（1）test-keys</strong></p>
+<p>前面我们提到了这个问题，所以这里我们需要将其进行修改，这里直接将<code>test-keys</code>修改为<code>release-keys</code></p>
+<p>我们先查找一下位置：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/14.png" alt="image-20221110170717829"></p>
+<p>然后我们搜索<code>ro.build.tags</code>，可以在<code>buildinfo.sh</code>中找到</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/15.png" alt="image-20221110170923762"></p>
+<p>然后我们继续定位后面的值，在<code>build/make/core/Makefile</code>中</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/16.png" alt="image-20221110171154404"></p>
+<p>这里我们直接修改为<code>release-keys</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/17.png" alt="image-20221110171500893"></p>
+<p><strong>（2）ro.build.display.id</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/18.png" alt="image-20221110171620174"></p>
+<p>按照前面的思路进行定位：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/19.png" alt="image-20221110171748450"></p>
+<p><code>build/make/core/Makefile</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/20.png" alt="image-20221110173324063"></p>
+<p>这里我们将其值修改为和user保持一致</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/21.png" alt="image-20221110173507737"></p>
+<p>注意这里我们使用release-key</p>
+<p><strong>（3）ro.build.version.incremental</strong></p>
+<p>这里我们可以将<code>buildinfo.sh</code>和<code>Makefile文件都修改</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/22.png" alt="image-20221110183726699"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/23.png" alt="image-20221110183907866"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/24.png" alt="image-20221110183949373"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/25.png" alt="image-20221110184826773"></p>
+<p>即我们修改<code>BF_BUILD_BUMBER</code>的值就可以了</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/26.png" alt="image-20221110185028392"></p>
+<p><strong>（4）ro.build.date和ro.build.date.utc</strong></p>
+<p>这两个是编译是时间，为了与后面保持一致，我们还是进行修改</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/49.png" alt="image-20221110192341103"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/48.png" alt="image-20221110192320386"></p>
+<p>然后我们进行修改：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/50.png" alt="image-20221110192458248"></p>
+<p><strong>（5）ro.build.type</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/27.png" alt="image-20221110185453548"></p>
+<p><code>buildinfo.sh</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/28.png" alt="image-20221110185619811"></p>
+<p><code>Makefile</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/29.png" alt="image-20221110185703907"></p>
+<p>直接在此处修改即可</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/30.png" alt="image-20221110185821794"></p>
+<p><strong>（6）ro.build.user和ro.build.host</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/31.png" alt="image-20221110190003376"></p>
+<p><code>buildinfo.sh</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/32.png" alt="image-20221110190030377"></p>
+<p>这里我们直接修改为用户名和主机</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/33.png" alt="image-20221110190336611"></p>
+<p><strong>（6）ro.build.flavor</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/35.png" alt="image-20221110190538846"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/34.png" alt="image-20221110190502332"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/36.png" alt="image-20221110190643010"></p>
+<p>然后我们直接进行修改</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/37.png" alt="image-20221110190749792"></p>
+<p><strong>（7）ro.build.description</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/40.png" alt="image-20221110191315720"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/38.png" alt="image-20221110191035722"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/39.png" alt="image-20221110191132102"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/41.png" alt="image-20221110191528854"></p>
+<p>应修改为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">aosp_sailfish-user 8.1.0 OPM1.171019.011 eng.Windaa.20221109.050000 release-keys </span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/42.png" alt="image-20221110191702936"><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/43.png" alt="image-20221110191739877"></p>
+<p><strong>（8）ro.build.fingerprint</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/44.png" alt="image-20221110191832725"></p>
+<p>一样，我们进行定位</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/45.png" alt="image-20221110191909861"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/53.png" alt="image-20221110213839174"></p>
+<p>然后我们进行修改</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Android/aosp_sailfish/sailfish:8.1.0/OPM1.171019.011/Windaa11090500:user/release-keys</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/47.png" alt="image-20221110213959934"></p>
+<p><strong>（9）ro.product.model、ro.product.brand、ro.product.name</strong></p>
+<p>一些朋友想要设备向google的原设备一样，可以修改手机的代号和产品名称，这里就不修改了，感兴趣朋友可以修改</p>
+<h3 id="3-4-root定制"><a href="#3-4-root定制" class="headerlink" title="3.4 root定制"></a>3.4 root定制</h3><p>root定制这里参考通用的方法：xu为自定义的名称</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">AOSP/system/extras/su下修改Android.mk中su修改为xu</span><br><span class="line">AOSP/system/core/libcutils/fs_config.cpp中/system/xbin/su修改为/system/xbin/xu</span><br><span class="line">AOSP/system/sepolicy/private/file_contexts中/system/xbin/su修改为/system/xbin/xu</span><br></pre></td></tr></table></figure>
+
+<p>第一处</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/51.png" alt="image-20221110193527770"></p>
+<p>第二处</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/58.png"></p>
+<p>第三处</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/52.png" alt="image-20221110193712743"></p>
+<h3 id="3-5编译"><a href="#3-5编译" class="headerlink" title="3.5编译"></a>3.5编译</h3><p>然后再次编译，选择user-debug版</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lunch：24</span><br><span class="line">make -j4</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/5.png" alt="image-20221109214415835"></p>
+<h3 id="3-6效果演示"><a href="#3-6效果演示" class="headerlink" title="3.6效果演示"></a>3.6效果演示</h3><p>我们重新刷机，刷机完成后，就可以发现定制的镜像和原理看起来一致</p>
+<p>定制后：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/56.png" alt="image-20221115142107682"></p>
+<p>定制前（user版）：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/8.png" alt="image-20221110152811681"></p>
+<p>我们可以试下，看能不能正常root</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code5/57.png" alt="image-20221115142222210"></p>
+<p>可以发现是没有问题的</p>
+<h2 id="4-总结"><a href="#4-总结" class="headerlink" title="4.总结"></a>4.总结</h2><p>本文编译了user版和user-debug版，并通过指纹定制将user-debug魔改为user版，为后续试验提供了更多的方便，相关文件后续上传github</p>
+<h2 id="5-参考文献"><a href="#5-参考文献" class="headerlink" title="5.参考文献"></a>5.参考文献</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">https://bbs.pediy.com/thread-273485.htm#msg_header_h2_0</span><br><span class="line">http://lzonel.cn/3136.html</span><br><span class="line">https://blog.csdn.net/u010142437/article/details/78030485</span><br><span class="line">https://www.jianshu.com/p/dd6cca4ec27d</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2022/12/05/code5/" title="Android源码定制（5）——root指纹定制与抹除">http://security-kitchen.com/2022/12/05/code5/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/" rel="tag"># 逆向技术</a>
+              <a href="/tags/root/" rel="tag"># root</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/04/code4/" rel="prev" title="Android源码定制（4）——Xposed源码定制">
+      <i class="fa fa-chevron-left"></i> Android源码定制（4）——Xposed源码定制
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/15/code6/" rel="next" title="Android源码定制（6）——Android10无源码内置apk到系统">
+      Android源码定制（6）——Android10无源码内置apk到系统 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%89%8D%E8%A8%80"><span class="nav-text">1.前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-text">2.基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%8C%87%E7%BA%B9%E8%A7%A3%E6%9E%90"><span class="nav-text">2.1 指纹解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-root%E6%A3%80%E6%B5%8B%E6%96%B9%E5%BC%8F"><span class="nav-text">2.2 root检测方式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%AE%9E%E9%AA%8C"><span class="nav-text">3.实验</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-user%E7%89%88%E6%9C%AC%E7%9A%84%E7%BC%96%E8%AF%91"><span class="nav-text">3.1 user版本的编译</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-userdebug%E7%89%88%E6%9C%AC%E7%BC%96%E8%AF%91"><span class="nav-text">3.2 userdebug版本编译</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-root%E6%8C%87%E7%BA%B9%E6%8A%B9%E9%99%A4"><span class="nav-text">3.3 root指纹抹除</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-root%E5%AE%9A%E5%88%B6"><span class="nav-text">3.4 root定制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5%E7%BC%96%E8%AF%91"><span class="nav-text">3.5编译</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6%E6%95%88%E6%9E%9C%E6%BC%94%E7%A4%BA"><span class="nav-text">3.6效果演示</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%80%BB%E7%BB%93"><span class="nav-text">4.总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">5.参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

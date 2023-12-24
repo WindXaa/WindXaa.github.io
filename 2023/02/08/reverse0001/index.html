@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="背景原来公司使用的是某叮打卡，就是普通的定位打卡，之前已经从系统层做好了位置修改，配合自己写的APP做了注入任意位置，就在周五2022年12月30日突然发公告切换了打卡软件某力e，既然换了那就试试某叮的那一套对它有没有效果，结果很显然无效，如果有效就没有这一篇文章了。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android协议分析（1）——Android逆向破解某力定位打卡">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/08/reverse0001/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="背景原来公司使用的是某叮打卡，就是普通的定位打卡，之前已经从系统层做好了位置修改，配合自己写的APP做了注入任意位置，就在周五2022年12月30日突然发公告切换了打卡软件某力e，既然换了那就试试某叮的那一套对它有没有效果，结果很显然无效，如果有效就没有这一篇文章了。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_1.png">
+<meta property="og:image" content="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_2.png">
+<meta property="og:image" content="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_3.png">
+<meta property="og:image" content="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_4.gif">
+<meta property="article:published_time" content="2023-02-08T01:20:00.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.118Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="逆向技术">
+<meta property="article:tag" content="协议分析">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/08/reverse0001/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android协议分析（1）——Android逆向破解某力定位打卡 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/08/reverse0001/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android协议分析（1）——Android逆向破解某力定位打卡
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-08 09:20:00" itemprop="dateCreated datePublished" datetime="2023-02-08T09:20:00+08:00">2023-02-08</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E5%8D%8F%E8%AE%AE%E5%88%86%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">协议分析</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><p>原来公司使用的是某叮打卡，就是普通的定位打卡，之前已经从系统层做好了位置修改，配合自己写的APP做了注入任意位置，就在周五2022年12月30日突然发公告切换了打卡软件某力e，既然换了那就试试某叮的那一套对它有没有效果，结果很显然无效，如果有效就没有这一篇文章了。</p>
+<span id="more"></span>
+
+<h4 id="一些猜想"><a href="#一些猜想" class="headerlink" title="一些猜想"></a>一些猜想</h4><p>因为之前分析过某叮的定位逻辑，这里大概描述一下。</p>
+<p>它的定位逻辑是两个方向的，第一它通过SDK接口，申请了系统的GPS定位，调用了<code>LocationManager</code>这个方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">requestLocationUpdates(<span class="meta">@NonNull</span> String provider, <span class="type">long</span> minTime, <span class="type">float</span> minDistance,</span><br><span class="line">        <span class="meta">@NonNull</span> LocationListener listener, <span class="meta">@Nullable</span> Looper looper)</span><br></pre></td></tr></table></figure>
+
+<p>另一个方向就是基于基站和周边WiFi列表的定位+ip，这里叫LBS，这里就取2种逻辑中最快回调回来的，比如GPS快，就拿GPS的经纬度，再使用高德SDK的api获取坐标对应的地点名字，如果GPS不可用，或者无回调，或者LBS定位回调比GPS快，拿到坐标后，也通过SDK获取坐标对应的地点名字。以上就是它的总体逻辑。不要问怎么知道的[doge].</p>
+<p>通过分析，某力和某叮都是用了高德SDK，那刚开始我直接修改系统GPS以为能成功，没想到没效果，而且<code>requestLocationUpdates</code>是没有被调用的，那只能说它用的是LBS方式。</p>
+<p>打开高德SDKdemo，发现了一个叫H5辅助定位，进入看看，且试用了一下。</p>
+<p><img src="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_1.png"></p>
+<p>原来还能这样啊。</p>
+<p>再结合这个大佬的分析<a target="_blank" rel="noopener" href="https://www.52pojie.cn/thread-1709943-1-1.html%EF%BC%8C%E5%AE%9A%E4%BD%8D%E9%87%8D%E8%A6%81%E4%BB%A3%E7%A0%81%E6%98%AF%E5%9C%A8%60SDKWebViewFragment%60%E4%B8%AD%EF%BC%8C%E5%A4%A7%E6%A6%82%E8%83%BD%E7%A1%AE%E5%AE%9A%E6%9F%90%E5%8A%9B%E5%8F%AA%E7%94%A8LBS%E6%96%B9%E5%BC%8F%E3%80%82%E6%94%B9%E7%B3%BB%E7%BB%9F%E7%9A%84GPS%E6%95%B0%E6%8D%AE%E6%98%AF%E6%B2%A1%E5%8A%9E%E6%B3%95%E7%9A%84%E3%80%82">https://www.52pojie.cn/thread-1709943-1-1.html，定位重要代码是在`SDKWebViewFragment`中，大概能确定某力只用LBS方式。改系统的GPS数据是没办法的。</a></p>
+<p>既然不吃系统数据，那就开始分析最新版本的情况吧，上面吾爱大佬的破解方式已经不适用最新版本了，他的文章也没有支出是那个版本，没有给出样本。所以能参考的就只有<code>SDKWebViewFragment</code>中获取定位的方法，也就是web和原生native沟通的方法:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> BaseSDKResult <span class="title function_">a</span><span class="params">(LocationGetRequest locationGetRequest, com.delicloud.app.jsbridge.main.c cVar)</span></span><br></pre></td></tr></table></figure>
+
+
+
+<h4 id="开始分析定位重要位置"><a href="#开始分析定位重要位置" class="headerlink" title="开始分析定位重要位置"></a>开始分析定位重要位置</h4><p>某力版本android:versionName&#x3D;”2.5.9”</p>
+<p>样本地址：<a target="_blank" rel="noopener" href="https://wwsk.lanzouy.com/iikQR0judryj%EF%BC%8CMD5%EF%BC%9A76f852dc4108e05cdb6f105df26c32a5">https://wwsk.lanzouy.com/iikQR0judryj，MD5：76f852dc4108e05cdb6f105df26c32a5</a></p>
+<p>反编译工具：jadx</p>
+<p>我们把样本拖进去jadx中，搜索<code>SDKWebViewFragment</code>,找到之后打开它。</p>
+<p>根据上面吾爱大佬的文章，参考是否还存在这个方法，根据开发经验，一般都不会乱改web和原生通信方法。</p>
+<p>继续搜索<code>BaseSDKResult a(LocationGetRequest locationGetRequest</code>找到获取定位的方法。</p>
+<p><img src="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_2.png"></p>
+<p>我们是幸运的，方法还在，而且逻辑也不复杂。我们来大体分析下整个方法的代码吧。</p>
+<blockquote>
+<p>我希望你有Android应用层开发经验，就算混淆的代码，也能看懂大概。不然瞎猜代码是很痛苦的，且会走弯路。</p>
+</blockquote>
+<p>a方法是web和原生通信的方法，返回了一个BaseSDKResult对象。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span> <span class="comment">// com.delicloud.app.jsbridge.b</span></span><br><span class="line"><span class="keyword">public</span> BaseSDKResult <span class="title function_">a</span><span class="params">(LocationGetRequest locationGetRequest, com.delicloud.app.jsbridge.main.c cVar)</span> &#123;</span><br><span class="line">    <span class="comment">//第一个判断①gd，通过传入context获取了系统服务LocationManager，</span></span><br><span class="line">    <span class="comment">//然后isProviderEnabled(GeocodeSearch.GPS)翻译：GPS服务能用吗，</span></span><br><span class="line">    <span class="comment">//locationManager.isProviderEnabled(&quot;network&quot;)网络定位能用吗，</span></span><br><span class="line">    <span class="comment">//如果其中一个可以用，那么就进入里面代码块，如果都不能，就进入②toast一个提示语。</span></span><br><span class="line">    <span class="comment">//显然，这个APP在进入首页的时候会问你要定位权限，你一定要给，有了定位</span></span><br><span class="line">    <span class="comment">//这里的判断就一定会成立。</span></span><br><span class="line">    <span class="keyword">if</span> (com.delicloud.app.tools.utils.i.gd(<span class="built_in">this</span>.mContentActivity)) &#123;</span><br><span class="line">        <span class="comment">//③n方法代码判断</span></span><br><span class="line">        <span class="comment">//这里就是再次检查权限，如果没有弹窗提示要权限，</span></span><br><span class="line">        <span class="comment">//如果没有权限，就没有下文了，我们会给APP权限的，这里判断就可以默认为true了</span></span><br><span class="line">        <span class="keyword">if</span> (com.delicloud.app.tools.utils.m.n(<span class="built_in">this</span>)) &#123;</span><br><span class="line">          	<span class="comment">//④be方法，从本地sp文件中根据某个key取出数据，然后强转为AddressModel对象。</span></span><br><span class="line">            <span class="type">AddressModel</span> <span class="variable">addressModel</span> <span class="operator">=</span> (AddressModel) dl.a.be(<span class="built_in">this</span>.mContentActivity, com.delicloud.app.commom.b.bBz);</span><br><span class="line">            <span class="comment">//请求的时候如果需要缓存，且缓存的addressModel不是空的</span></span><br><span class="line">          	<span class="comment">//且当前时间和缓存的时间小于10000ms（10秒），就使用缓存。</span></span><br><span class="line">            <span class="comment">//经过我的动态调试，addressModel是null，也就是这里的判断不成立。</span></span><br><span class="line">          	<span class="comment">//⑤，看我给出的动态调试代码。</span></span><br><span class="line">            <span class="keyword">if</span> (locationGetRequest.isCache() &amp;&amp; addressModel != <span class="literal">null</span> &amp;&amp; System.currentTimeMillis() - addressModel.getCache_time() &lt;= <span class="number">10000</span>) &#123;</span><br><span class="line">                <span class="type">LocationGetResult</span> <span class="variable">locationGetResult</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">LocationGetResult</span>();</span><br><span class="line">                locationGetResult.setData(<span class="keyword">new</span> <span class="title class_">LocationGetResult</span>.LocationGetData(addressModel.getLatitude(), addressModel.getLongitude(), addressModel.getName(), addressModel.getAddress()));</span><br><span class="line">                Log.e(<span class="string">&quot;cache&quot;</span>, com.delicloud.app.http.utils.c.aq(locationGetResult));</span><br><span class="line">                dl.a.a(<span class="built_in">this</span>.mContentActivity, com.delicloud.app.commom.b.bBz, <span class="literal">null</span>);</span><br><span class="line">              	<span class="comment">//这里如果存在缓存，就直接返回数据，不需要再去申请定位</span></span><br><span class="line">                <span class="keyword">return</span> locationGetResult;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">//取缓存不成功，就是申请获取位置了。</span></span><br><span class="line">            <span class="keyword">final</span> <span class="type">boolean</span>[] zArr = &#123;<span class="literal">true</span>&#125;;</span><br><span class="line">            <span class="comment">//看到这里，做开发的小伙伴就秒懂了。</span></span><br><span class="line">          	<span class="comment">//rxJava，创建订阅，子线程走某事，成功后切换主线下拿到结果。</span></span><br><span class="line">            <span class="comment">//也就是⑥位置是结果，我们关注结果就行了。</span></span><br><span class="line">            Observable.create(<span class="keyword">new</span> <span class="title class_">ObservableOnSubscribe</span>&lt;Long&gt;() &#123; <span class="comment">// from class: com.delicloud.app.jsbridge.ui.fragment.SDKWebViewFragment.7</span></span><br><span class="line">                <span class="meta">@Override</span> <span class="comment">// io.reactivex.ObservableOnSubscribe</span></span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">subscribe</span><span class="params">(ObservableEmitter&lt;Long&gt; observableEmitter)</span> <span class="keyword">throws</span> Exception &#123;</span><br><span class="line">                    <span class="keyword">if</span> (SDKWebViewFragment.<span class="built_in">this</span>.bLI == <span class="literal">null</span>) &#123;</span><br><span class="line">                        <span class="keyword">return</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                    SDKWebViewFragment.<span class="built_in">this</span>.bLI.a(<span class="keyword">new</span> <span class="title class_">a</span>.InterfaceC0166a() &#123; <span class="comment">// from class: com.delicloud.app.jsbridge.ui.fragment.SDKWebViewFragment.7.1</span></span><br><span class="line">                        <span class="meta">@Override</span> <span class="comment">// com.delicloud.app.tools.utils.a.InterfaceC0166a</span></span><br><span class="line">                        <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">a</span><span class="params">(<span class="type">double</span> d2, <span class="type">double</span> d3, String str, String str2, String str3, String str4)</span> &#123;</span><br><span class="line">                            zArr[<span class="number">0</span>] = <span class="literal">false</span>;</span><br><span class="line">                            <span class="type">LocationGetResult</span> <span class="variable">locationGetResult2</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">LocationGetResult</span>();</span><br><span class="line">                            locationGetResult2.setData(<span class="keyword">new</span> <span class="title class_">LocationGetResult</span>.LocationGetData(Double.valueOf(d2), Double.valueOf(d3), str, str2));</span><br><span class="line">                            Log.i(SocializeConstants.KEY_LOCATION, com.delicloud.app.http.utils.c.aq(locationGetResult2));</span><br><span class="line">                            SDKWebViewFragment.<span class="built_in">this</span>.a(com.delicloud.app.jsbridge.b.chq, locationGetResult2);</span><br><span class="line">                        &#125;</span><br><span class="line"></span><br><span class="line">                        <span class="meta">@Override</span> <span class="comment">// com.delicloud.app.tools.utils.a.InterfaceC0166a</span></span><br><span class="line">                        <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">ZP</span><span class="params">()</span> &#123;</span><br><span class="line">                            zArr[<span class="number">0</span>] = <span class="literal">false</span>;</span><br><span class="line">                            SDKWebViewFragment.<span class="built_in">this</span>.a(com.delicloud.app.jsbridge.b.chq, <span class="keyword">new</span> <span class="title class_">BaseSDKResult</span>(JsSDKResultCode.GET_LOCATION_RESULT_FAIL));</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;).timeout(<span class="number">60L</span>, TimeUnit.SECONDS).subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread()).subscribe(<span class="keyword">new</span> <span class="title class_">Observer</span>&lt;Long&gt;() &#123; <span class="comment">// from class: com.delicloud.app.jsbridge.ui.fragment.SDKWebViewFragment.6</span></span><br><span class="line">                <span class="meta">@Override</span> <span class="comment">// io.reactivex.Observer</span></span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onComplete</span><span class="params">()</span> &#123;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                <span class="meta">@Override</span> <span class="comment">// io.reactivex.Observer</span></span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onSubscribe</span><span class="params">(Disposable disposable)</span> &#123;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                <span class="meta">@Override</span> <span class="comment">// io.reactivex.Observer</span></span><br><span class="line">                <span class="comment">/* renamed from: e */</span></span><br><span class="line">                <span class="comment">//⑥这里是定位返回成功后</span></span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onNext</span><span class="params">(Long l2)</span> &#123;</span><br><span class="line">                   	<span class="comment">//看到这个判断我觉得很奇怪，为什么要这样呢，到底是否成立呢。</span></span><br><span class="line">                  	<span class="comment">//看到申请定位前有那么一句final boolean[] zArr = &#123;true&#125;;</span></span><br><span class="line">                  	<span class="comment">//这又是何苦，上面标记了true，那判断就一定成立。</span></span><br><span class="line">                    <span class="comment">//最后我们调用了a方法。文章往下拉，看a的实现。⑥</span></span><br><span class="line">                    <span class="keyword">if</span> (zArr[<span class="number">0</span>]) &#123;</span><br><span class="line">                        SDKWebViewFragment.<span class="built_in">this</span>.a(com.delicloud.app.jsbridge.b.chq, <span class="keyword">new</span> <span class="title class_">BaseSDKResult</span>(JsSDKResultCode.GET_LOCATION_RESULT_FAIL));</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line">                <span class="meta">@Override</span> <span class="comment">// io.reactivex.Observer</span></span><br><span class="line">                <span class="comment">//这里是rxJava流程遇到错误回调</span></span><br><span class="line">                <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onError</span><span class="params">(Throwable th)</span> &#123;</span><br><span class="line">                    <span class="keyword">if</span> (zArr[<span class="number">0</span>]) &#123;</span><br><span class="line">                        SDKWebViewFragment.<span class="built_in">this</span>.a(com.delicloud.app.jsbridge.b.chq, <span class="keyword">new</span> <span class="title class_">BaseSDKResult</span>(JsSDKResultCode.GET_LOCATION_RESULT_FAIL));</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//如果GPS和定位不能用，就toast</span></span><br><span class="line">    es.dmoral.toasty.b.bQ(<span class="built_in">this</span>.mContentActivity, <span class="string">&quot;当前系统定位开关未开启，无法定位&quot;</span>).show();</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">BaseSDKResult</span>(JsSDKResultCode.IBEACON_NEED_LOCATION_PERMISSION);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>①：gd这个判断，做了什么呢，进去看看。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">i</span> &#123;</span><br><span class="line">    <span class="comment">//获取定位服务，判断是否可用，如果我们授权了肯定可以用</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="type">boolean</span> <span class="title function_">gd</span><span class="params">(Context context)</span> &#123;</span><br><span class="line">        <span class="type">LocationManager</span> <span class="variable">locationManager</span> <span class="operator">=</span> (LocationManager) context.getSystemService(SocializeConstants.KEY_LOCATION);</span><br><span class="line">        <span class="keyword">return</span> locationManager.isProviderEnabled(GeocodeSearch.GPS) || locationManager.isProviderEnabled(<span class="string">&quot;network&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>③再次检查定位权限</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="type">boolean</span> <span class="title function_">n</span><span class="params">(<span class="keyword">final</span> Fragment fragment)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (c(fragment.getContext(), cxo)) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (com.delicloud.app.commom.b.bAc) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    com.delicloud.app.commom.b.bAc = <span class="literal">true</span>;</span><br><span class="line">    com.delicloud.app.deiui.feedback.dialog.b.bVs.d(fragment.getActivity(), <span class="string">&quot;得力e+申请访问精准定位权限&quot;</span>, <span class="string">&quot;用于极速打卡、考勤签到打卡、天气服务等功能。拒绝或取消授权不影响其他服务&quot;</span>, <span class="string">&quot;去开启&quot;</span>, <span class="string">&quot;取消&quot;</span>, <span class="literal">true</span>, <span class="keyword">new</span> <span class="title class_">b</span>.a() &#123; <span class="comment">// from class: com.delicloud.app.tools.utils.m.6</span></span><br><span class="line">        <span class="meta">@Override</span> <span class="comment">// com.delicloud.app.deiui.feedback.dialog.b.a</span></span><br><span class="line">        <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">Za</span><span class="params">()</span> &#123;</span><br><span class="line">            es.dmoral.toasty.b.bQ(Fragment.<span class="built_in">this</span>.getActivity(), <span class="string">&quot;权限拒绝后，将无法使用该功能&quot;</span>).show();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span> <span class="comment">// com.delicloud.app.deiui.feedback.dialog.b.a</span></span><br><span class="line">        <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">Zb</span><span class="params">()</span> &#123;</span><br><span class="line">            m.a(Fragment.<span class="built_in">this</span>, m.cxo, <span class="number">12</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;).show(fragment.getChildFragmentManager(), <span class="string">&quot;权限申请&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>④根据一个key字符串，获取本地储存的数据，然后转Java bean对象。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">public static &lt;T extends Serializable&gt; T be(Context context, String str) &#123;</span><br><span class="line">    try &#123;</span><br><span class="line">        return (T) bh(context, str);</span><br><span class="line">    &#125; catch (Exception e2) &#123;</span><br><span class="line">        e2.printStackTrace();</span><br><span class="line">        return null;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">    private static Object bh(Context context, String str) throws IOException, ClassNotFoundException &#123;</span><br><span class="line">    //从sp中取出数据</span><br><span class="line">    String string = getString(context, str);</span><br><span class="line">    if (TextUtils.isEmpty(string)) &#123;</span><br><span class="line">        return null;</span><br><span class="line">    &#125;</span><br><span class="line">    //这里经过base64解码，也就是我们可以根据str这个key去sp中找到里面的数据</span><br><span class="line">    //然后base64解码就可以看到存储内容了，有兴趣可以hook得到str，看看sp的数据哦</span><br><span class="line">    ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(Base64.decode(string.getBytes(), 0));</span><br><span class="line">    ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);</span><br><span class="line">    Object readObject = objectInputStream.readObject();</span><br><span class="line">    byteArrayInputStream.close();</span><br><span class="line">    objectInputStream.close();</span><br><span class="line">    return readObject;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>⑤AddressModel addressModel &#x3D; (AddressModel) dl.a.be(this.mContentActivity, com.delicloud.app.commom.b.bBz);中be方法frida hook代码，这里也可以用Xposed的hook，看你自己会那个。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> a = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;dl.a&quot;</span>);</span><br><span class="line">a[<span class="string">&quot;be&quot;</span>].<span class="property">implementation</span> = <span class="keyword">function</span> (<span class="params">context, str</span>) &#123;</span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;be is called&#x27;</span> + <span class="string">&#x27;, &#x27;</span> + <span class="string">&#x27;context: &#x27;</span> + context + <span class="string">&#x27;, &#x27;</span> + <span class="string">&#x27;str: &#x27;</span> + str);</span><br><span class="line">    <span class="keyword">let</span> ret = <span class="variable language_">this</span>.<span class="title function_">be</span>(context, str);</span><br><span class="line">    <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;be ret value is &#x27;</span> + ret);</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>经过我的调试，返回值是null，也就是没缓存，取缓存条件不成立，继续往下走。</p>
+<p>⑥onNext流程调用了a</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">a</span><span class="params">(String str, BaseSDKResult baseSDKResult)</span> &#123;</span><br><span class="line">    <span class="comment">//这里可以忽略，这东西不是null,原因，fragment创建的时候，获取了webview组件</span></span><br><span class="line">  	<span class="comment">//ckD就是BridgeWebView实例，不可能，</span></span><br><span class="line">  	<span class="comment">//这里判断是防止fragment退出之后清理了BridgeWebView，rxJava还继续回调引发</span></span><br><span class="line">  	<span class="comment">//空指针异常，要判断下，正常情况下可以理解往下走</span></span><br><span class="line">  	<span class="comment">//以下就是ckD赋值代码</span></span><br><span class="line">  	<span class="comment">//public View onCreateView(LayoutInflater layoutInflater, \</span></span><br><span class="line">    <span class="comment">//@Nullable ViewGroup viewGroup, @Nullable Bundle bundle) &#123;</span></span><br><span class="line">    <span class="comment">//View onCreateView = super.onCreateView(layoutInflater, viewGroup, bundle);</span></span><br><span class="line">    <span class="comment">//this.ckD = (BridgeWebView) onCreateView.findViewById(R.id.fragment_web_view);</span></span><br><span class="line">    <span class="comment">//return onCreateView;</span></span><br><span class="line">    <span class="comment">//&#125;</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">this</span>.ckD == <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//这个开发真是个大聪明，居然直接把重要数据log打印出来，我真的谢谢你。</span></span><br><span class="line">  	<span class="comment">//在开发的时候调试版本可以打log，辅助开发，到了生产环境一定要把log关掉</span></span><br><span class="line">  	<span class="comment">//通常我们都是使用一个log工具做代理，统一打印log处理</span></span><br><span class="line">  	<span class="comment">//在发布最终版本的时候关闭log工具开关，同时通过混淆把Log.i等代码移除</span></span><br><span class="line">  	<span class="comment">//大家可以过滤看看，这里打印了什么，破解的方案就在这里了</span></span><br><span class="line">    Log.i(<span class="string">&quot;SDKWebViewFragment&quot;</span>, <span class="string">&quot;call back registerMethod=&quot;</span> + str + <span class="string">&quot;,result=&quot;</span> + com.delicloud.app.http.utils.c.aq(baseSDKResult));</span><br><span class="line">  	<span class="comment">//ckF是private HashMap&lt;String, c&gt; ckF = new HashMap&lt;&gt;();一个Map</span></span><br><span class="line">  	<span class="comment">//这里的判断是：Map中是否包含了str这个（变量里面的值）键值对，如果有，就取出str对应的</span></span><br><span class="line">  	<span class="comment">//value，这个value就是c对象，c对象是：</span></span><br><span class="line">  	<span class="comment">//public interface c &#123;</span></span><br><span class="line">		<span class="comment">//    void nm(String str);</span></span><br><span class="line">    <span class="comment">//&#125;</span></span><br><span class="line">  	<span class="comment">//用人话说就是：取出str对应的c接口的具体实现对象然后调用nm方法</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">this</span>.ckF.containsKey(str)) &#123;</span><br><span class="line">      	<span class="comment">//这里调用nm之前，aq方法处理了baseSDKResult（里面就是定位结果）⑦</span></span><br><span class="line">        <span class="built_in">this</span>.ckF.get(str).nm(com.delicloud.app.http.utils.c.aq(baseSDKResult));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>⑦进去aq看看，里面做了什么呢。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title function_">aq</span><span class="params">(Object obj2)</span> &#123;</span><br><span class="line">    gson = afV();</span><br><span class="line">    <span class="type">Gson</span> <span class="variable">gson2</span> <span class="operator">=</span> gson;</span><br><span class="line">  	<span class="comment">//gson是一个处理json的工具，这里使用了gson的api，把java bean转成json字符串</span></span><br><span class="line">    <span class="keyword">if</span> (gson2 != <span class="literal">null</span>) &#123;</span><br><span class="line">      	<span class="comment">//把传递进来的java bean转json字符串</span></span><br><span class="line">        <span class="keyword">return</span> gson2.toJson(obj2);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>做开发的人基本上秒懂了，就是java bean转json吗，那么我们可以看看aq方法到底返回了什么。</p>
+<p>上frida hook就行。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">let</span> <span class="variable">c</span> <span class="operator">=</span> Java.use(<span class="string">&quot;com.delicloud.app.http.utils.c&quot;</span>);</span><br><span class="line">c[<span class="string">&quot;aq&quot;</span>].implementation = function (obj2) &#123;</span><br><span class="line">    console.log(<span class="string">&#x27;aq is called&#x27;</span> + <span class="string">&#x27;, &#x27;</span> + <span class="string">&#x27;obj2: &#x27;</span> + obj2);</span><br><span class="line">    <span class="type">let</span> <span class="variable">ret</span> <span class="operator">=</span> <span class="built_in">this</span>.aq(obj2);</span><br><span class="line">    console.log(<span class="string">&#x27;aq ret value is &#x27;</span> + ret);</span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="string">&quot;code&quot;</span>:<span class="number">0</span>,</span><br><span class="line">    <span class="string">&quot;data&quot;</span>:&#123;</span><br><span class="line">        <span class="string">&quot;address&quot;</span>:<span class="string">&quot;广东省广州市&quot;</span>,</span><br><span class="line">        <span class="string">&quot;latitude&quot;</span>:<span class="number">23.</span>xxxx,</span><br><span class="line">        <span class="string">&quot;longitude&quot;</span>:<span class="number">113.</span>xxxx,</span><br><span class="line">        <span class="string">&quot;name&quot;</span>:<span class="string">&quot;xx大厦&quot;</span></span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="string">&quot;method&quot;</span>:<span class="string">&quot;&quot;</span>,</span><br><span class="line">    <span class="string">&quot;msg&quot;</span>:<span class="string">&quot;成功&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>打印的数据居然是这样的。</p>
+<p>聪明的你应该知道怎么做了吧？</p>
+<h4 id="frida-hook改位置"><a href="#frida-hook改位置" class="headerlink" title="frida hook改位置"></a>frida hook改位置</h4><p>经过动态调试之后，我发现了aq的数据居然包含了位置信息，我当时就想到了破解方案。</p>
+<p>替换大法！</p>
+<p>我去替换里面的数据，看看效果如何。</p>
+<p>说干就干。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//com.delicloud.app.http.utils.c</span></span><br><span class="line"><span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="keyword">var</span> com_delicloud_app_http_utils_c_clz = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&#x27;com.delicloud.app.http.utils.c&#x27;</span>);</span><br><span class="line"> </span><br><span class="line">    <span class="keyword">var</span> com_delicloud_app_http_utils_c_clz_method_aq_4105 = com_delicloud_app_http_utils_c_clz.<span class="property">aq</span>.<span class="title function_">overload</span>(<span class="string">&#x27;java.lang.Object&#x27;</span>);</span><br><span class="line">    com_delicloud_app_http_utils_c_clz_method_aq_4105.<span class="property">implementation</span> = <span class="keyword">function</span>(<span class="params">v0</span>) &#123;</span><br><span class="line">         </span><br><span class="line">        <span class="keyword">var</span> ret = com_delicloud_app_http_utils_c_clz_method_aq_4105.<span class="title function_">call</span>(com_delicloud_app_http_utils_c_clz, v0);</span><br><span class="line">        </span><br><span class="line">        <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;json：&quot;</span>, ret);</span><br><span class="line">        <span class="comment">//data&quot;:&#123;&quot;address</span></span><br><span class="line">        <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;判断地址：：&quot;</span> + ret.<span class="title function_">indexOf</span>(<span class="string">&quot;data\&quot;:\&#123;\&quot;address&quot;</span>) != -<span class="number">1</span> );</span><br><span class="line">      	<span class="comment">//代码中必须把json转义，不转义语法错误。</span></span><br><span class="line">        <span class="keyword">var</span> addr = <span class="string">&quot;&#123;\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;    \&quot;code\&quot;:0,\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;    \&quot;data\&quot;:&#123;\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;        \&quot;address\&quot;:\&quot;目标地址名称，自己替换经纬度，后面给工具获取\&quot;,\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;        \&quot;latitude\&quot;:23.2222,\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;        \&quot;longitude\&quot;:113.22222,\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;        \&quot;name\&quot;:\&quot;某大厦\&quot;\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;    &#125;,\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;    \&quot;method\&quot;:\&quot;\&quot;,\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;    \&quot;msg\&quot;:\&quot;成功\&quot;\n&quot;</span> +</span><br><span class="line">            <span class="string">&quot;&#125;&quot;</span>;</span><br><span class="line">        <span class="comment">//如果返回的数据包含了这样的字符串，就直接替换我们目的地，其他</span></span><br><span class="line">        <span class="comment">//java bean转json的就正常返回就行。</span></span><br><span class="line">        <span class="keyword">if</span> (ret.<span class="title function_">indexOf</span>(<span class="string">&quot;data\&quot;:\&#123;\&quot;address&quot;</span>) != -<span class="number">1</span>) &#123;</span><br><span class="line">            <span class="keyword">return</span> addr;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;;</span><br><span class="line">     </span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<p>执行脚本，下拉刷新看看效果。</p>
+<p><img src="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_3.png"></p>
+<p>我反手就点了，打卡成功。</p>
+<p>看到这里，像做持久化hook的应该秒懂了。</p>
+<p>我就不提供相关的成品了。</p>
+<h4 id="如何获取正确坐标"><a href="#如何获取正确坐标" class="headerlink" title="如何获取正确坐标"></a>如何获取正确坐标</h4><p>刚开始的时候我是去<a target="_blank" rel="noopener" href="https://lbs.amap.com/tools/picker%E5%8F%96%E5%9D%90%E6%A0%87%E3%80%82">https://lbs.amap.com/tools/picker取坐标。</a></p>
+<p>当我从这个网站取回来坐标后，并没有效果，显示的位置是目标坐标的4点钟方向再过一段距离。</p>
+<p>后来问了其他有坐标处理经验的朋友阿肥，他告诉我地图坐标可能需要做标准换算。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">JXMapUtil</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">String</span> <span class="variable">PN_GAODE_MAP</span> <span class="operator">=</span> <span class="string">&quot;com.autonavi.minimap&quot;</span>;   <span class="comment">// 高德地图包名</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">String</span> <span class="variable">PN_BAIDU_MAP</span> <span class="operator">=</span> <span class="string">&quot;com.baidu.BaiduMap&quot;</span>;     <span class="comment">// 百度地图包名</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">String</span> <span class="variable">PN_TENCENT_MAP</span> <span class="operator">=</span> <span class="string">&quot;com.tencent.map&quot;</span>;      <span class="comment">// 腾讯地图包名</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">double</span> <span class="variable">a</span> <span class="operator">=</span> <span class="number">6378245.0</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">double</span> <span class="variable">pi</span> <span class="operator">=</span> <span class="number">3.1415926535897932384626</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="type">double</span> <span class="variable">ee</span> <span class="operator">=</span> <span class="number">0.00669342162296594323</span>;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="comment">//____________________________坐标转化_____________________________________________________</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 转化为火星坐标系</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> latitude</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> longitude</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="type">double</span>[] toGCJ02Point(<span class="type">double</span> latitude, <span class="type">double</span> longitude) &#123;</span><br><span class="line">        <span class="type">double</span>[] dev = calDev(latitude, longitude);</span><br><span class="line">        <span class="type">double</span> <span class="variable">retLat</span> <span class="operator">=</span> latitude + dev[<span class="number">0</span>];</span><br><span class="line">        <span class="type">double</span> <span class="variable">retLon</span> <span class="operator">=</span> longitude + dev[<span class="number">1</span>];</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">double</span>[] &#123; retLat, retLon &#125;;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 火星坐标系 转化为 WGS84(国际坐标系</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> latitude</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> longitude</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="type">double</span>[] toWGS84Point(<span class="type">double</span> latitude, <span class="type">double</span> longitude) &#123;</span><br><span class="line">        <span class="type">double</span>[] dev = calDev(latitude, longitude);</span><br><span class="line">        <span class="type">double</span> <span class="variable">retLat</span> <span class="operator">=</span> latitude - dev[<span class="number">0</span>];</span><br><span class="line">        <span class="type">double</span> <span class="variable">retLon</span> <span class="operator">=</span> longitude - dev[<span class="number">1</span>];</span><br><span class="line">        dev = calDev(retLat, retLon);</span><br><span class="line">        retLat = latitude - dev[<span class="number">0</span>];</span><br><span class="line">        retLon = longitude - dev[<span class="number">1</span>];</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">double</span>[] &#123; retLat, retLon &#125;;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">double</span>[] calDev(<span class="type">double</span> wgLat, <span class="type">double</span> wgLon) &#123;</span><br><span class="line">        <span class="keyword">if</span> (isOutOfChina(wgLat, wgLon)) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">double</span>[] &#123; <span class="number">0</span>, <span class="number">0</span> &#125;;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="type">double</span> <span class="variable">dLat</span> <span class="operator">=</span> calLat(wgLon - <span class="number">105.0</span>, wgLat - <span class="number">35.0</span>);</span><br><span class="line">        <span class="type">double</span> <span class="variable">dLon</span> <span class="operator">=</span> calLon(wgLon - <span class="number">105.0</span>, wgLat - <span class="number">35.0</span>);</span><br><span class="line">        <span class="type">double</span> <span class="variable">radLat</span> <span class="operator">=</span> wgLat / <span class="number">180.0</span> * pi;</span><br><span class="line">        <span class="type">double</span> <span class="variable">magic</span> <span class="operator">=</span> Math.sin(radLat);</span><br><span class="line">        magic = <span class="number">1</span> - ee * magic * magic;</span><br><span class="line">        <span class="type">double</span> <span class="variable">sqrtMagic</span> <span class="operator">=</span> Math.sqrt(magic);</span><br><span class="line">        dLat = (dLat * <span class="number">180.0</span>) / ((a * (<span class="number">1</span> - ee)) / (magic * sqrtMagic) * pi);</span><br><span class="line">        dLon = (dLon * <span class="number">180.0</span>) / (a / sqrtMagic * Math.cos(radLat) * pi);</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">double</span>[] &#123; dLat, dLon &#125;;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">boolean</span> <span class="title function_">isOutOfChina</span><span class="params">(<span class="type">double</span> lat, <span class="type">double</span> lon)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (lon &lt; <span class="number">72.004</span> || lon &gt; <span class="number">137.8347</span>)</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">        <span class="keyword">if</span> (lat &lt; <span class="number">0.8293</span> || lat &gt; <span class="number">55.8271</span>)</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">double</span> <span class="title function_">calLat</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y)</span> &#123;</span><br><span class="line">        <span class="type">double</span> <span class="variable">ret</span> <span class="operator">=</span> -<span class="number">100.0</span> + <span class="number">2.0</span> * x + <span class="number">3.0</span> * y + <span class="number">0.2</span> * y * y + <span class="number">0.1</span> * x * y + <span class="number">0.2</span> * Math.sqrt(Math.abs(x));</span><br><span class="line">        ret += (<span class="number">20.0</span> * Math.sin(<span class="number">6.0</span> * x * pi) + <span class="number">20.0</span> * Math.sin(<span class="number">2.0</span> * x * pi)) * <span class="number">2.0</span> / <span class="number">3.0</span>;</span><br><span class="line">        ret += (<span class="number">20.0</span> * Math.sin(y * pi) + <span class="number">40.0</span> * Math.sin(y / <span class="number">3.0</span> * pi)) * <span class="number">2.0</span> / <span class="number">3.0</span>;</span><br><span class="line">        ret += (<span class="number">160.0</span> * Math.sin(y / <span class="number">12.0</span> * pi) + <span class="number">320</span> * Math.sin(y * pi / <span class="number">30.0</span>)) * <span class="number">2.0</span> / <span class="number">3.0</span>;</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="type">double</span> <span class="title function_">calLon</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y)</span> &#123;</span><br><span class="line">        <span class="type">double</span> <span class="variable">ret</span> <span class="operator">=</span> <span class="number">300.0</span> + x + <span class="number">2.0</span> * y + <span class="number">0.1</span> * x * x + <span class="number">0.1</span> * x * y + <span class="number">0.1</span> * Math.sqrt(Math.abs(x));</span><br><span class="line">        ret += (<span class="number">20.0</span> * Math.sin(<span class="number">6.0</span> * x * pi) + <span class="number">20.0</span> * Math.sin(<span class="number">2.0</span> * x * pi)) * <span class="number">2.0</span> / <span class="number">3.0</span>;</span><br><span class="line">        ret += (<span class="number">20.0</span> * Math.sin(x * pi) + <span class="number">40.0</span> * Math.sin(x / <span class="number">3.0</span> * pi)) * <span class="number">2.0</span> / <span class="number">3.0</span>;</span><br><span class="line">        ret += (<span class="number">150.0</span> * Math.sin(x / <span class="number">12.0</span> * pi) + <span class="number">300.0</span> * Math.sin(x / <span class="number">30.0</span> * pi)) * <span class="number">2.0</span> / <span class="number">3.0</span>;</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>也就是你从网站拾取的坐标需要转wgs84坐标</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">double</span>[] wgs84Point = JXMapUtil.toWGS84Point(latitude, longitude);</span><br></pre></td></tr></table></figure>
+
+<p>这样的坐标喂给高德腾讯百度相关定位就OK了。</p>
+<p>我这里提供一个apk方便坐标拾取。</p>
+<p>如果使用，打卡拾取，点击你需要的位置，然后右下角点击√，返回的坐标就是wgs84标准的坐标了。</p>
+<p>工具下载地址：</p>
+<p><a target="_blank" rel="noopener" href="https://wwsk.lanzouy.com/iAFqH0jut6yj">https://wwsk.lanzouy.com/iAFqH0jut6yj</a></p>
+<p>MD5：d3c87fdd3d1982d29d485dc7baaab176</p>
+<p><img src="https://reverse-1307040378.cos.ap-chengdu.myqcloud.com/reverse2022020801/1675822080_4.gif"></p>
+<p>这样的坐标就是冇问题的啦！</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>这个案例允许动态调试，没有root检查等等阻拦，是一个很好的实战例子。</p>
+<p>在做这个逆向的事情的前提，我个人认为，你应该具备以下知识。</p>
+<p>0：先学会开发！达到入门就OK。</p>
+<p>1：Java基础扎实，有Android应用层开发的经验，能看懂SDK代码。</p>
+<p>2：熟悉开发中使用到的第三方库，比如这里用到的gson，rxJava，高德定位SDK。</p>
+<p>3：熟练使用jadx，apktool，AndroidKiller，Frida，Xposed等工具。</p>
+<p>题外话，准备好AOSP系统代码，能修改系统且刷入手机，方便定位某些系统api，甚至定制接口。</p>
+<p>夸张一点说十行代码搞定某定打卡（已实现了）（这只是其中一个案例）</p>
+<p>我现在工作是搞Android TV launcher开发的，偶尔也会做点盒子，手机的业务，算是有一点点开发经验。</p>
+<p>在熟悉开发的前提下，去逆向会顺利很多 。</p>
+<p>–来自业余逆向菜鸡的总结。</p>
+<p>我们在星球安全后厨等你~</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/08/reverse0001/" title="Android协议分析（1）——Android逆向破解某力定位打卡">http://security-kitchen.com/2023/02/08/reverse0001/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/" rel="tag"># 逆向技术</a>
+              <a href="/tags/%E5%8D%8F%E8%AE%AE%E5%88%86%E6%9E%90/" rel="tag"># 协议分析</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/01/19/Packer10/" rel="prev" title="Android加壳与脱壳（10）—— （so脱壳）自解密的脱壳修复">
+      <i class="fa fa-chevron-left"></i> Android加壳与脱壳（10）—— （so脱壳）自解密的脱壳修复
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/09/bug0002/" rel="next" title="Android App漏洞之战（2）——（Windows）Android安全工具包">
+      Android App漏洞之战（2）——（Windows）Android安全工具包 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E8%83%8C%E6%99%AF"><span class="nav-text">背景</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%80%E4%BA%9B%E7%8C%9C%E6%83%B3"><span class="nav-text">一些猜想</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%BC%80%E5%A7%8B%E5%88%86%E6%9E%90%E5%AE%9A%E4%BD%8D%E9%87%8D%E8%A6%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">开始分析定位重要位置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#frida-hook%E6%94%B9%E4%BD%8D%E7%BD%AE"><span class="nav-text">frida hook改位置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%A6%82%E4%BD%95%E8%8E%B7%E5%8F%96%E6%AD%A3%E7%A1%AE%E5%9D%90%E6%A0%87"><span class="nav-text">如何获取正确坐标</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

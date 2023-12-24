@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言本实验主要是解析Fdex2源码解析和实现frida版本的Fdex2，Fdex2是一个针对第一代壳整体加壳的脱壳框架，不需要通过定位so层中的地址，仅仅只需要在java层就可以实现对第一代壳的脱去，主要是利用两个函数getBytes()和getDex()，目前仅仅针对于Android 7.0及以下版本，缺点：如果一些壳不经过loadClass这个流程，就无法脱下来">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android加壳与脱壳（7）——Fdex2源码解析和frida版本实现">
+<meta property="og:url" content="http://security-kitchen.com/2022/12/04/Packer7/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言本实验主要是解析Fdex2源码解析和实现frida版本的Fdex2，Fdex2是一个针对第一代壳整体加壳的脱壳框架，不需要通过定位so层中的地址，仅仅只需要在java层就可以实现对第一代壳的脱去，主要是利用两个函数getBytes()和getDex()，目前仅仅针对于Android 7.0及以下版本，缺点：如果一些壳不经过loadClass这个流程，就无法脱下来">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/1.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/2.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/3.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/4.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/5.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/6.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/7.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/9.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/10.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/11.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/12.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/13.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/14.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/15.png">
+<meta property="article:published_time" content="2022-12-03T16:00:00.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.107Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="逆向技术">
+<meta property="article:tag" content="加壳与脱壳">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2022/12/04/Packer7/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android加壳与脱壳（7）——Fdex2源码解析和frida版本实现 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2022/12/04/Packer7/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android加壳与脱壳（7）——Fdex2源码解析和frida版本实现
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-04 00:00:00" itemprop="dateCreated datePublished" datetime="2022-12-04T00:00:00+08:00">2022-12-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/" itemprop="url" rel="index"><span itemprop="name">Android加壳与脱壳</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>本实验主要是解析Fdex2源码解析和实现frida版本的Fdex2，Fdex2是一个针对第一代壳整体加壳的脱壳框架，不需要通过定位so层中的地址，仅仅只需要在java层就可以实现对第一代壳的脱去，主要是利用两个函数<code>getBytes()</code>和<code>getDex()</code>，目前仅仅针对于Android 7.0及以下版本，缺点：如果一些壳不经过loadClass这个流程，就无法脱下来</p>
+<span id="more"></span>
+<p>本文实验分为两个版本：Android7.0及以下使用frida_fdex2、Android8.0及以上使用dumpDexByCookie.js来实现</p>
+<p>本文收集的参考博客：</p>
+<p><a target="_blank" rel="noopener" href="http://www.juziss.cn/2020/09/22/app%E7%9A%84%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/">app的加壳与脱壳</a>——此博客主要讲述看雪2w班的相关知识，十分的详细，建议仔细详细读</p>
+<p><a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-252284.htm">Android万能脱壳机 </a>——此博客主要提出两种主流脱壳思路，第一种思路为本文mCooike实现</p>
+<p><a target="_blank" rel="noopener" href="https://f5.pm/go-29363.html">Frida写抽取壳</a>——用Frida写抽取壳的学习</p>
+<p><a target="_blank" rel="noopener" href="https://kevinspider.github.io/fridahookso/">frida hook so文件笔记总结</a>——看雪2w班frida hook的学习笔记很详细，建议阅读</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/AlienwareHe/RDex">RDex</a>——和本文实现思路一致</p>
+<p><a target="_blank" rel="noopener" href="https://www.anquanke.com/post/id/219094">FART脱壳机流程分析</a>——对FART脱壳机流程的解析</p>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/yangxi_pekin/article/details/53432094">Dex脱壳格式详解</a>——对Dex格式解析很清楚</p>
+<h2 id="二、Fdex2原理解析"><a href="#二、Fdex2原理解析" class="headerlink" title="二、Fdex2原理解析"></a>二、Fdex2原理解析</h2><h3 id="1-原理解析"><a href="#1-原理解析" class="headerlink" title="1.原理解析"></a>1.原理解析</h3><p>android中的java.lang.Class类拥有一个方法<code>public native Dex getDex();</code>，这意味着我们能通过Class对象的<code>getDex</code>方法获取到<code>Dex</code>对象，<code>Dex</code>类中有一个方法<code>public byte[] getBytes()</code>，我们能通过此方法获取获取该class对象关联的dex数据。这里采用的是Xposed去hook应用的<code>ClassLoader.loadClass</code>方法区dump解密后的dex数据</p>
+<h3 id="2-getBytes-和getDex-作用"><a href="#2-getBytes-和getDex-作用" class="headerlink" title="2.getBytes()和getDex()作用"></a>2.getBytes()和getDex()作用</h3><h4 id="（1）getDex"><a href="#（1）getDex" class="headerlink" title="（1）getDex()"></a>（1）getDex()</h4><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/1.png" alt="image-20211213153933934"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/2.png" alt="image-20211213161523790"></p>
+<p>通过<code>getDex()</code>来反射调用获得Dex类</p>
+<h4 id="（2）getBytes"><a href="#（2）getBytes" class="headerlink" title="（2）getBytes()"></a>（2）getBytes()</h4><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/3.png" alt="image-20211213161658498"></p>
+<p>然后通过该类对象去调用getBytes()，来获取数据信息</p>
+<h2 id="三、Fdex2实现"><a href="#三、Fdex2实现" class="headerlink" title="三、Fdex2实现"></a>三、Fdex2实现</h2><h3 id="1-配置Xposed环境"><a href="#1-配置Xposed环境" class="headerlink" title="1.配置Xposed环境"></a>1.配置Xposed环境</h3><h3 id="2-编写Fdex2源码"><a href="#2-编写Fdex2源码" class="headerlink" title="2.编写Fdex2源码"></a>2.编写Fdex2源码</h3><h4 id="（1）获取getBytes-和getDex-的方法引用"><a href="#（1）获取getBytes-和getDex-的方法引用" class="headerlink" title="（1）获取getBytes()和getDex()的方法引用"></a>（1）获取getBytes()和getDex()的方法引用</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">Class Dex;</span><br><span class="line">Method Dex_getBytes;</span><br><span class="line">Method getDex;</span><br><span class="line">String packagename;</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line"> <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">initRefect</span><span class="params">()</span>&#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">// public byte[] getBytes()</span></span><br><span class="line">            Dex = Class.forName(<span class="string">&quot;com.android.dex.Dex&quot;</span>);</span><br><span class="line">            Dex_getBytes = Dex.getDeclaredMethod(<span class="string">&quot;getBytes&quot;</span>,<span class="literal">null</span>);</span><br><span class="line">            <span class="comment">// public Dex getDex()</span></span><br><span class="line">            getDex = Class.forName(<span class="string">&quot;java.lang.Class&quot;</span>).getDeclaredMethod(<span class="string">&quot;getDex&quot;</span>,<span class="literal">null</span>);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (ClassNotFoundException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125; <span class="keyword">catch</span> (NoSuchMethodException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）编写hook代码"><a href="#（2）编写hook代码" class="headerlink" title="（2）编写hook代码"></a>（2）编写hook代码</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">handleLoadPackage</span><span class="params">(XC_LoadPackage.LoadPackageParam lpparam)</span> <span class="keyword">throws</span> Throwable &#123;</span><br><span class="line">      initRefect();</span><br><span class="line">      XposedBridge.log(<span class="string">&quot;目标包名：&quot;</span>+ lpparam.packageName);</span><br><span class="line">      <span class="type">String</span> <span class="variable">str</span> <span class="operator">=</span> <span class="string">&quot;java.lang.ClassLoader&quot;</span>;</span><br><span class="line">      <span class="type">String</span> <span class="variable">str2</span> <span class="operator">=</span> <span class="string">&quot;loadClass&quot;</span>;</span><br><span class="line">      <span class="keyword">final</span> <span class="type">String</span> <span class="variable">packagename</span> <span class="operator">=</span> <span class="string">&quot;com.jiongji.andriod.card&quot;</span>;</span><br><span class="line"></span><br><span class="line">      <span class="comment">//   protected Class&lt;?&gt; loadClass(String className, boolean resolve) throws ClassNotFoundException</span></span><br><span class="line">      <span class="keyword">if</span>(lpparam.packageName.equals(packagename))&#123;</span><br><span class="line">          <span class="comment">// public static Unhook findAndHookMethod(String var0, ClassLoader var1, String var2, Object... var3)</span></span><br><span class="line">          XposedHelpers.findAndHookMethod(str, lpparam.classLoader, str2, String.class, Boolean.TYPE, <span class="keyword">new</span> <span class="title class_">XC_MethodHook</span>() &#123;</span><br><span class="line">              <span class="meta">@Override</span></span><br><span class="line">              <span class="keyword">protected</span> <span class="keyword">void</span> <span class="title function_">afterHookedMethod</span><span class="params">(MethodHookParam param)</span> <span class="keyword">throws</span> Throwable &#123;</span><br><span class="line">                  <span class="built_in">super</span>.afterHookedMethod(param);</span><br><span class="line">                  <span class="comment">//获取hook函数返回类</span></span><br><span class="line">                  <span class="type">Class</span> <span class="variable">cls</span> <span class="operator">=</span> (Class) param.getResult();</span><br><span class="line">                  <span class="keyword">if</span>(cls == <span class="literal">null</span>)&#123;</span><br><span class="line">                      <span class="keyword">return</span>;</span><br><span class="line">                  &#125;</span><br><span class="line">                  <span class="type">String</span> <span class="variable">name</span> <span class="operator">=</span> cls.getName();</span><br><span class="line">                  XposedBridge.log(<span class="string">&quot;当前类名：&quot;</span>+name);</span><br><span class="line">                  <span class="type">byte</span>[] bArr = (<span class="type">byte</span>[]) Dex_getBytes.invoke(getDex.invoke(cls,<span class="literal">null</span>)); <span class="comment">//Class.getDex().getBytes()</span></span><br><span class="line">                  <span class="keyword">if</span>(bArr == <span class="literal">null</span>) &#123;</span><br><span class="line">                      XposedBridge.log(<span class="string">&quot;数据为空，返回&quot;</span>);</span><br><span class="line">                      <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">                  &#125;</span><br><span class="line">                  XposedBridge.log(<span class="string">&quot;开始写数据&quot;</span>);</span><br><span class="line">                  <span class="type">String</span> <span class="variable">dex_path</span> <span class="operator">=</span> <span class="string">&quot;/data/data/&quot;</span>+packagename+<span class="string">&quot;/&quot;</span>+packagename+<span class="string">&quot;_&quot;</span>+bArr.length+<span class="string">&quot;.dex&quot;</span>;</span><br><span class="line">                  XposedBridge.log(dex_path);</span><br><span class="line">                  <span class="type">File</span> <span class="variable">file</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">File</span>(dex_path);</span><br><span class="line">                  <span class="keyword">if</span>(file.exists())&#123;</span><br><span class="line">                      <span class="keyword">return</span>;</span><br><span class="line">                  &#125;</span><br><span class="line">                  writeByte(bArr,file.getAbsolutePath());</span><br><span class="line">              &#125;</span><br><span class="line"></span><br><span class="line">              <span class="meta">@Override</span></span><br><span class="line">              <span class="keyword">protected</span> <span class="keyword">void</span> <span class="title function_">beforeHookedMethod</span><span class="params">(MethodHookParam param)</span> <span class="keyword">throws</span> Throwable &#123;</span><br><span class="line">                  <span class="built_in">super</span>.beforeHookedMethod(param);</span><br><span class="line">              &#125;</span><br><span class="line">          &#125;);</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>图示如下：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/4.png" alt="image-20211213162622686"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/5.png" alt="image-20211213162929639"></p>
+<h4 id="（3）保存数据"><a href="#（3）保存数据" class="headerlink" title="（3）保存数据"></a>（3）保存数据</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">writeByte</span><span class="params">(<span class="type">byte</span>[] bArr,String str)</span>&#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">          <span class="type">OutputStream</span> <span class="variable">outputStream</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">FileOutputStream</span>(str);</span><br><span class="line">          outputStream.write(bArr);</span><br><span class="line">          outputStream.close();</span><br><span class="line">      &#125;  <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">          e.printStackTrace();</span><br><span class="line">          XposedBridge.log(<span class="string">&quot;文件写出失败&quot;</span>);</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-运行及结果演示"><a href="#3-运行及结果演示" class="headerlink" title="3.运行及结果演示"></a>3.运行及结果演示</h3><p>（1）编译安装xposed模块，然后重启</p>
+<p>（2）打开目标应用，运行</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/6.png" alt="image-20211213163101141"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/7.png" alt="image-20211213163128728"></p>
+<h2 id="四、Frida版本修改-针对android7-0"><a href="#四、Frida版本修改-针对android7-0" class="headerlink" title="四、Frida版本修改(针对android7.0)"></a>四、Frida版本修改(针对android7.0)</h2><h3 id="1-frida实现getDex-和getBytes"><a href="#1-frida实现getDex-和getBytes" class="headerlink" title="1.frida实现getDex()和getBytes()"></a>1.frida实现getDex()和getBytes()</h3><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">fdex2</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">        <span class="comment">// java.lang.Class.getDex</span></span><br><span class="line">        <span class="comment">// com.android.dex.Dex.getBytes</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// var Class = Java.use(&quot;java.lang.Class&quot;);</span></span><br><span class="line">        <span class="comment">// console.log(Class);</span></span><br><span class="line">        <span class="comment">// var getDex = Class.getDex.overloads;</span></span><br><span class="line">        <span class="comment">// if(getDex !=null)&#123;</span></span><br><span class="line">        <span class="comment">//     console.log(getDex);</span></span><br><span class="line">        <span class="comment">// &#125;</span></span><br><span class="line">        <span class="comment">// var Dex = Java.use(&quot;com.android.dex.Dex&quot;);</span></span><br><span class="line">        <span class="comment">// var getBytes = Dex.getBytes.overloads;</span></span><br><span class="line">        <span class="comment">// if(getBytes != null)&#123;</span></span><br><span class="line">        <span class="comment">//     console.log(getBytes);</span></span><br><span class="line">        <span class="comment">// &#125;</span></span><br><span class="line"></span><br><span class="line">        <span class="title class_">Java</span>.<span class="title function_">enumerateClassLoadersSync</span>().<span class="title function_">forEach</span>(<span class="keyword">function</span> (<span class="params">loader</span>) &#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="keyword">var</span> <span class="title class_">Class</span> = loader.<span class="title function_">loadClass</span>(<span class="string">&quot;java.lang.Class&quot;</span>);</span><br><span class="line">                <span class="keyword">var</span> methods= <span class="title class_">Class</span>.<span class="title function_">getDeclaredMethods</span>();</span><br><span class="line">                methods.<span class="title function_">forEach</span>(<span class="keyword">function</span> (<span class="params">method</span>) &#123;</span><br><span class="line">                    <span class="variable language_">console</span>.<span class="title function_">log</span>(method);</span><br><span class="line">                &#125;)</span><br><span class="line">            &#125;<span class="keyword">catch</span> (e)&#123;</span><br><span class="line"></span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">try</span>&#123;</span><br><span class="line">                <span class="keyword">var</span> <span class="title class_">Dex</span> = loader.<span class="title function_">loadClass</span>(<span class="string">&quot;com.android.dex.Dex&quot;</span>);</span><br><span class="line">                <span class="keyword">var</span> methods= <span class="title class_">Dex</span>.<span class="title function_">getDeclaredMethods</span>();</span><br><span class="line">                methods.<span class="title function_">forEach</span>(<span class="keyword">function</span> (<span class="params">method</span>) &#123;</span><br><span class="line">                    <span class="variable language_">console</span>.<span class="title function_">log</span>(method);</span><br><span class="line">                &#125;)</span><br><span class="line">            &#125;<span class="keyword">catch</span> (e)&#123;</span><br><span class="line"></span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">        &#125;)</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">main</span>(<span class="params"></span>)&#123;</span><br><span class="line">    <span class="title function_">fdex2</span>();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="title function_">setImmediate</span>(main)</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/8.png" alt="image-20211214095439271"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/9.png" alt="image-20211214100026323"></p>
+<h3 id="2-fdex2-frida版本的实现"><a href="#2-fdex2-frida版本的实现" class="headerlink" title="2.fdex2 frida版本的实现"></a>2.fdex2 frida版本的实现</h3><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// public static void savedex(byte[] content,String filepath) throws IOException &#123;</span></span><br><span class="line"><span class="comment">//     FileOutputStream fileOutputStream = new FileOutputStream(new File(filepath));</span></span><br><span class="line"><span class="comment">//     fileOutputStream.write(content);</span></span><br><span class="line"><span class="comment">//     fileOutputStream.close();</span></span><br><span class="line"><span class="comment">// &#125;</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">savedex</span>(<span class="params">dexbytes,dexpath</span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">        <span class="keyword">var</span> <span class="title class_">File</span> = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;java.io.File&quot;</span>);</span><br><span class="line">        <span class="keyword">var</span> <span class="title class_">FileOutputStream</span> = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;java.io.FileOutputStream&quot;</span>);</span><br><span class="line">        <span class="keyword">var</span> fileobj = <span class="title class_">File</span>.$new(dexpath);</span><br><span class="line">        <span class="keyword">var</span> fileOutputStreamobj = <span class="title class_">FileOutputStream</span>.$new(fileobj);</span><br><span class="line">        fileOutputStreamobj.<span class="title function_">write</span>(dexbytes);</span><br><span class="line">        fileOutputStreamobj.<span class="title function_">close</span>();</span><br><span class="line">        <span class="variable language_">console</span>.<span class="title function_">warn</span>(<span class="string">&quot;[dumpdex]&quot;</span>+dexpath);</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">fdex2</span>(<span class="params">classname</span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">        <span class="title class_">Java</span>.<span class="title function_">enumerateClassLoadersSync</span>().<span class="title function_">forEach</span>(<span class="keyword">function</span> (<span class="params">loader</span>) &#123;</span><br><span class="line">            <span class="keyword">try</span>&#123;</span><br><span class="line">                <span class="keyword">var</span> <span class="title class_">ThisClass</span> = loader.<span class="title function_">loadClass</span>(classname);</span><br><span class="line">                <span class="comment">//var Class = Java.use(&quot;java.lang.Class&quot;);</span></span><br><span class="line">                <span class="keyword">var</span> dexobj = <span class="title class_">ThisClass</span>.<span class="title function_">getDex</span>();</span><br><span class="line">                <span class="keyword">var</span> dexbytearray = dexobj.<span class="title function_">getBytes</span>();</span><br><span class="line">                <span class="keyword">var</span> savedexpath = <span class="string">&quot;/sdcard/&quot;</span>+classname + <span class="string">&quot;.dex&quot;</span>;</span><br><span class="line">                <span class="title function_">savedex</span>(dexbytearray,savedexpath);</span><br><span class="line">            &#125;<span class="keyword">catch</span> (e)&#123;</span><br><span class="line"></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;)</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>使用方法：</p>
+<p>（1）附加脚本</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">frida -<span class="variable constant_">FU</span> -l <span class="title class_">Fdex2</span>.<span class="property">js</span> --no-pause <span class="comment">//attach方式启动APP 不需要setImmediate()</span></span><br></pre></td></tr></table></figure>
+
+<p>（2）脱取指定的Activity</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/10.png" alt="image-20211214105157751"></p>
+<h3 id="3-fdex2脱壳时机点"><a href="#3-fdex2脱壳时机点" class="headerlink" title="3.fdex2脱壳时机点"></a>3.fdex2脱壳时机点</h3><h4 id="（1）onCreate函数执行完"><a href="#（1）onCreate函数执行完" class="headerlink" title="（1）onCreate函数执行完"></a>（1）onCreate函数执行完</h4><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//时机点</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">main</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">        <span class="keyword">var</span> <span class="title class_">StubApp</span> = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;com.stub.StubApp&quot;</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//时机点1</span></span><br><span class="line">        <span class="title class_">StubApp</span>.<span class="property">onCreate</span>.<span class="property">implementation</span> = <span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">            <span class="keyword">var</span> result = <span class="variable language_">this</span>.<span class="title function_">onCreate</span>();</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;StubAPP.onCreate called over!&quot;</span>);</span><br><span class="line">            <span class="title function_">fdex2</span>(<span class="string">&quot;com.touchtv.module_live.view.activity.PreviewListActivity&quot;</span>);</span><br><span class="line">            <span class="keyword">return</span> result;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">    </span><br><span class="line">&#125;</span><br><span class="line"> <span class="title function_">setImmediate</span>(main)</span><br></pre></td></tr></table></figure>
+
+<p>执行命令：</p>
+<p>可以直接对包名进行进行附加：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">frida -U -f com.<span class="property">touchtv</span>.<span class="property">touchtv</span> -l <span class="title class_">Fdex2</span>.<span class="property">js</span> --no-pause  <span class="comment">//spwan模式在APP启动之前就开始附加 需要setImmediate()</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/11.png" alt="image-20211214111226523"></p>
+<h4 id="（2）attchBaseContext方法"><a href="#（2）attchBaseContext方法" class="headerlink" title="（2）attchBaseContext方法"></a>（2）attchBaseContext方法</h4><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//时机点</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">main</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">        <span class="keyword">var</span> <span class="title class_">StubApp</span> = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;com.stub.StubApp&quot;</span>);</span><br><span class="line">   		<span class="comment">//时机点2</span></span><br><span class="line">        <span class="title class_">StubApp</span>.<span class="property">attachBaseContext</span>.<span class="property">implementation</span> = <span class="keyword">function</span> (<span class="params">arg0</span>) &#123;</span><br><span class="line">            <span class="keyword">var</span> result = <span class="variable language_">this</span>.<span class="title function_">attachBaseContext</span>(arg0);</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;StubAPP.attachBaseContext called over!&quot;</span>);</span><br><span class="line">            <span class="title function_">fdex2</span>(<span class="string">&quot;com.touchtv.module_live.view.activity.PreviewListActivity&quot;</span>);</span><br><span class="line">            <span class="keyword">return</span> result;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">    </span><br><span class="line">&#125;</span><br><span class="line"> <span class="title function_">setImmediate</span>(main)</span><br></pre></td></tr></table></figure>
+
+<p>执行命令同上</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/12.png" alt="image-20211214111752868"></p>
+<p>我们验证时机点在attchBaseContext()之前，发现无法hook，说明dex文件在attachBaseContext()之后才解密</p>
+<h3 id="4-fdex2的扩展使用"><a href="#4-fdex2的扩展使用" class="headerlink" title="4.fdex2的扩展使用"></a>4.fdex2的扩展使用</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>使用frida枚举所有Classloader </span><br><span class="line"><span class="number">2.</span>确定正确的ClassLoader并获取目标类的Class对象</span><br><span class="line"><span class="number">3.</span>通过Class对象获取得到dex对象</span><br><span class="line"><span class="number">4.</span>通过dex对象获取内存字节流并保存</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、高版本的类似fdex2脱壳的实现（android-8-0以上）"><a href="#五、高版本的类似fdex2脱壳的实现（android-8-0以上）" class="headerlink" title="五、高版本的类似fdex2脱壳的实现（android 8.0以上）"></a>五、高版本的类似fdex2脱壳的实现（android 8.0以上）</h2><h3 id="1-高版本脱壳实现原理图"><a href="#1-高版本脱壳实现原理图" class="headerlink" title="1.高版本脱壳实现原理图"></a>1.高版本脱壳实现原理图</h3><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/13.png" alt="image-20211214131558973"></p>
+<p>获取最终的mCookie</p>
+<h4 id="（1）mCookie脱壳原理解析"><a href="#（1）mCookie脱壳原理解析" class="headerlink" title="（1）mCookie脱壳原理解析"></a>（1）mCookie脱壳原理解析</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">核心思路：反射 + mCookie（其实脱壳的点太多了，这是其中一个）</span><br><span class="line">步骤：</span><br><span class="line"><span class="number">1</span>、找到加固apk的任一class，一般选择主Application或Activity</span><br><span class="line"><span class="number">2</span>、通过该类找到对应的Classloader</span><br><span class="line"><span class="number">3</span>、通过该Classloader找到BaseDexClassLoader</span><br><span class="line"><span class="number">4</span>、通过BaseDexClassLoader找到其字段DexPathList</span><br><span class="line"><span class="number">5</span>、通过DexPathList找到其变量Element数组dexElements</span><br><span class="line"><span class="number">6</span>、迭代该数组，该数组内部包含DexFile结构</span><br><span class="line"><span class="number">7</span>、通过DexFile获取其变量mCookie和mFileName（这个名字没什么鸟用）</span><br><span class="line"> </span><br><span class="line">至此我们已经获取了mCookie</span><br><span class="line"> </span><br><span class="line">对该mCookie的解释（有些现在记不太清楚了）：</span><br><span class="line">#<span class="number">1</span>、<span class="number">4.4</span>以下好像，mCookie对应的是一个<span class="type">int</span>值，该值是指向<span class="keyword">native</span>层内存中的dexfile的指针</span><br><span class="line">#<span class="number">2</span>、<span class="number">5.0</span>是一个<span class="type">long</span>值，该值指向<span class="keyword">native</span>层std::vector&lt;const DexFile*&gt;* 指针，注意这里有多个dex，你需要找到你要的</span><br><span class="line">#<span class="number">3</span>、我还测试了<span class="number">8.0</span>手机，该值也是一个<span class="type">long</span>型的值，指向底层vector，但是vector下标<span class="number">0</span>是oat文件，从<span class="number">1</span>开始是dex文件</span><br><span class="line"><span class="comment">// 至于你手机是那个版本，如果没有落入我上面描述的，你需要自己看看代码</span></span><br><span class="line"> </span><br><span class="line"><span class="number">8</span>、根据mCookie对应的值做转换，最终你能找到dexfile内存指针</span><br><span class="line"><span class="number">9</span>、把该指针转换为dexfile结构，通过findClassDef来匹配你所寻找的dex是你要的dex</span><br><span class="line"><span class="number">10</span>、dump写文件</span><br><span class="line"> </span><br><span class="line"> </span><br><span class="line">代码说明（代码包括java层和<span class="keyword">native</span>层，但java层只需定义一个<span class="keyword">native</span>函数即可）：</span><br><span class="line"><span class="number">1</span>、代码核心部分为dump_dex.h 和 dump_dex.cpp，里面涉及你需要自行实现的部分（我测试用的<span class="number">5.0</span><span class="number">.2</span> moto手机，</span><br><span class="line">如果你的手机版本或者手机型号不同，你可能需要修改我表明的地方）</span><br><span class="line"><span class="number">2</span>、代码相对简单，你可以自行阅读</span><br><span class="line"> </span><br><span class="line">坑：</span><br><span class="line">此方法思路相对简单，但是操作相对繁琐</span><br><span class="line"><span class="number">1</span>、你需要重打包apk</span><br><span class="line"><span class="number">2</span>、如果遇到签名校验，你同时需要在重打包中加入hook签名代码</span><br></pre></td></tr></table></figure>
+
+<p>详细参考博客：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-252284.htm">Android万能脱壳机</a></p>
+<h3 id="2-获取mCookie"><a href="#2-获取mCookie" class="headerlink" title="2.获取mCookie"></a>2.获取mCookie</h3><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">dumpDexBymCookie</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">       <span class="title class_">Java</span>.<span class="title function_">choose</span>(<span class="string">&quot;dalvik.system.DexFile&quot;</span>,&#123;</span><br><span class="line">           <span class="attr">onMatch</span>:<span class="keyword">function</span> (<span class="params">dexfile</span>) &#123;</span><br><span class="line">               <span class="keyword">var</span> mCookie = dexfile.<span class="property">mCookie</span>.<span class="property">value</span>;</span><br><span class="line">               <span class="variable language_">console</span>.<span class="title function_">log</span>(mCookie.<span class="property">$className</span>);</span><br><span class="line">               <span class="keyword">var</span> <span class="title class_">Array</span> = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;java.lang.reflect.Array&quot;</span>);</span><br><span class="line">               <span class="keyword">var</span> size = <span class="title class_">Array</span>.<span class="title function_">getLength</span>(mCookie);</span><br><span class="line">               <span class="keyword">var</span> i = <span class="number">0</span>;</span><br><span class="line">               <span class="keyword">for</span>(i=<span class="number">0</span>;i&lt;size;i++)&#123;</span><br><span class="line">                   <span class="variable language_">console</span>.<span class="title function_">log</span>(i+<span class="string">&quot;-&gt;&quot;</span>+<span class="title class_">Array</span>.<span class="title function_">getLong</span>(mCookie,i));</span><br><span class="line">               &#125;</span><br><span class="line">           &#125;,<span class="attr">onComplete</span>:<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">               <span class="variable language_">console</span>.<span class="title function_">warn</span>(<span class="string">&quot;Search DexFile over!&quot;</span>);</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;) </span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/14.png" alt="image-20211214131746892"></p>
+<h3 id="3-通过mCookie获取dexFile起始地址和大小"><a href="#3-通过mCookie获取dexFile起始地址和大小" class="headerlink" title="3.通过mCookie获取dexFile起始地址和大小"></a>3.通过mCookie获取dexFile起始地址和大小</h3><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> savepath = <span class="string">&quot;/sdcard/&quot;</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">savedexfile</span>(<span class="params">dexfileptr</span>) &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">//将mCookie转换为对应的dexfile内存指针</span></span><br><span class="line">        <span class="keyword">var</span> dexfilebegin = <span class="title function_">ptr</span>(dexfileptr).<span class="title function_">add</span>(<span class="title class_">Process</span>.<span class="property">pointerSize</span>*<span class="number">1</span>).<span class="title function_">readPointer</span>(); <span class="comment">//dex的初始指针</span></span><br><span class="line">        <span class="keyword">var</span> dexfilesize = <span class="title function_">ptr</span>(dexfileptr).<span class="title function_">add</span>(<span class="title class_">Process</span>.<span class="property">pointerSize</span>*<span class="number">2</span>).<span class="title function_">readU32</span>(); <span class="comment">//dex的大小</span></span><br><span class="line">        <span class="keyword">var</span> dex = <span class="keyword">new</span> <span class="title class_">File</span>(savepath+<span class="string">&quot;_&quot;</span>+dexfilesize+<span class="string">&quot;.dex&quot;</span>,<span class="string">&quot;a&quot;</span>);</span><br><span class="line">        <span class="keyword">if</span>(dex!=<span class="literal">null</span>)&#123;</span><br><span class="line">            <span class="keyword">var</span> content = <span class="title function_">ptr</span>(dexfilebegin).<span class="title function_">readByteArray</span>(dexfilesize);</span><br><span class="line">            dex.<span class="title function_">write</span>(content);</span><br><span class="line">            dex.<span class="title function_">flush</span>();</span><br><span class="line">            dex.<span class="title function_">close</span>();</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">warn</span>(<span class="string">&quot;[dumpdex]&quot;</span>+savepath+<span class="string">&quot;_&quot;</span>+dexfilesize+<span class="string">&quot;.dex&quot;</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (e) &#123;</span><br><span class="line">        </span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer7/15.png" alt="image-20211214163113934"></p>
+<p>注意：在Android8.0即更高版本上使用保存，很可能是frida_server版本过低导致出错</p>
+<h2 id="六、实验总结"><a href="#六、实验总结" class="headerlink" title="六、实验总结"></a>六、实验总结</h2><p>本文主要仿造fdex2思想，针对于第一代的整体加固，开发支持android全版本的自动化脱壳脚本</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2022/12/04/Packer7/" title="Android加壳与脱壳（7）——Fdex2源码解析和frida版本实现">http://security-kitchen.com/2022/12/04/Packer7/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/" rel="tag"># 逆向技术</a>
+              <a href="/tags/%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/" rel="tag"># 加壳与脱壳</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/04/Packer8/" rel="prev" title="Android加壳与脱壳（8）——Youpk脱壳机源码分析">
+      <i class="fa fa-chevron-left"></i> Android加壳与脱壳（8）——Youpk脱壳机源码分析
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/04/Packer6/" rel="next" title="Android加壳与脱壳（6）——各类加壳器与原理分析推荐">
+      Android加壳与脱壳（6）——各类加壳器与原理分析推荐 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Fdex2%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90"><span class="nav-text">二、Fdex2原理解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90"><span class="nav-text">1.原理解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-getBytes-%E5%92%8CgetDex-%E4%BD%9C%E7%94%A8"><span class="nav-text">2.getBytes()和getDex()作用</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89getDex"><span class="nav-text">（1）getDex()</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89getBytes"><span class="nav-text">（2）getBytes()</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81Fdex2%E5%AE%9E%E7%8E%B0"><span class="nav-text">三、Fdex2实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%85%8D%E7%BD%AEXposed%E7%8E%AF%E5%A2%83"><span class="nav-text">1.配置Xposed环境</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E7%BC%96%E5%86%99Fdex2%E6%BA%90%E7%A0%81"><span class="nav-text">2.编写Fdex2源码</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E8%8E%B7%E5%8F%96getBytes-%E5%92%8CgetDex-%E7%9A%84%E6%96%B9%E6%B3%95%E5%BC%95%E7%94%A8"><span class="nav-text">（1）获取getBytes()和getDex()的方法引用</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E7%BC%96%E5%86%99hook%E4%BB%A3%E7%A0%81"><span class="nav-text">（2）编写hook代码</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE"><span class="nav-text">（3）保存数据</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E8%BF%90%E8%A1%8C%E5%8F%8A%E7%BB%93%E6%9E%9C%E6%BC%94%E7%A4%BA"><span class="nav-text">3.运行及结果演示</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81Frida%E7%89%88%E6%9C%AC%E4%BF%AE%E6%94%B9-%E9%92%88%E5%AF%B9android7-0"><span class="nav-text">四、Frida版本修改(针对android7.0)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-frida%E5%AE%9E%E7%8E%B0getDex-%E5%92%8CgetBytes"><span class="nav-text">1.frida实现getDex()和getBytes()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-fdex2-frida%E7%89%88%E6%9C%AC%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-text">2.fdex2 frida版本的实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-fdex2%E8%84%B1%E5%A3%B3%E6%97%B6%E6%9C%BA%E7%82%B9"><span class="nav-text">3.fdex2脱壳时机点</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89onCreate%E5%87%BD%E6%95%B0%E6%89%A7%E8%A1%8C%E5%AE%8C"><span class="nav-text">（1）onCreate函数执行完</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89attchBaseContext%E6%96%B9%E6%B3%95"><span class="nav-text">（2）attchBaseContext方法</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-fdex2%E7%9A%84%E6%89%A9%E5%B1%95%E4%BD%BF%E7%94%A8"><span class="nav-text">4.fdex2的扩展使用</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E9%AB%98%E7%89%88%E6%9C%AC%E7%9A%84%E7%B1%BB%E4%BC%BCfdex2%E8%84%B1%E5%A3%B3%E7%9A%84%E5%AE%9E%E7%8E%B0%EF%BC%88android-8-0%E4%BB%A5%E4%B8%8A%EF%BC%89"><span class="nav-text">五、高版本的类似fdex2脱壳的实现（android 8.0以上）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%AB%98%E7%89%88%E6%9C%AC%E8%84%B1%E5%A3%B3%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86%E5%9B%BE"><span class="nav-text">1.高版本脱壳实现原理图</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89mCookie%E8%84%B1%E5%A3%B3%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90"><span class="nav-text">（1）mCookie脱壳原理解析</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E8%8E%B7%E5%8F%96mCookie"><span class="nav-text">2.获取mCookie</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E9%80%9A%E8%BF%87mCookie%E8%8E%B7%E5%8F%96dexFile%E8%B5%B7%E5%A7%8B%E5%9C%B0%E5%9D%80%E5%92%8C%E5%A4%A7%E5%B0%8F"><span class="nav-text">3.通过mCookie获取dexFile起始地址和大小</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">六、实验总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

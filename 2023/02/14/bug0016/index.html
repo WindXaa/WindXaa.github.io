@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、漏洞介绍">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（16）——通信漏洞的案例实操">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/14/bug0016/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、漏洞介绍">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/0.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/13.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/17.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/23.png">
+<meta property="article:published_time" content="2023-02-14T01:02:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.113Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/0.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/14/bug0016/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（16）——通信漏洞的案例实操 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/14/bug0016/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（16）——通信漏洞的案例实操
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-14 09:02:19" itemprop="dateCreated datePublished" datetime="2023-02-14T09:02:19+08:00">2023-02-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、漏洞介绍"><a href="#一、漏洞介绍" class="headerlink" title="一、漏洞介绍"></a>一、漏洞介绍</h2><span id="more"></span>		
+<h2 id=""><a href="#" class="headerlink" title=""></a></h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">APP升级劫持漏洞是最常见的通用型逻辑缺陷漏洞，攻击者一般通过劫持APP升级的响应，通过伪造和篡改的方式来实现中间人攻击，从而向应用中注入恶意程序</span><br><span class="line">CNVD-2021-40179和CNVD-2021-45684便是采用中间人劫持攻击，来实现APP的恶意劫持替换</span><br><span class="line">现在市面上常用的APP,基本采用http明文传输——&gt;https加密传输——&gt;http/https+hash校验三种方式，我们依次对酷我音乐、酷狗音乐、学而思网校等主流APP做漏洞测试，来描述中间人攻击的具体实现</span><br></pre></td></tr></table></figure>
+
+<h2 id="二、原理解析"><a href="#二、原理解析" class="headerlink" title="二、原理解析"></a>二、原理解析</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">中间人攻击（MITM）是指攻击者与通讯的两端分别独立的联系，并交换其所收到的数据，使得通讯的两端认为他们正在通过一个私密的连接与对方直接对话，但事实上整个会话都会被攻击者完全控制</span><br><span class="line">在中间人攻击中，攻击者可以拦截通讯双方的通话并插入新的内容</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/0.png" alt="avatar"></p>
+<p>客户端不验证服务器是否可信，即checkServerTrusted()方法为空</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line">public void checkClientTrusted(X509Certificate[] chain, String authType)&#123;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>不检查站点域名与站点证书的域名是否匹配</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">HostnameVerifier hv = new HostnameVerifier()&#123;</span><br><span class="line">@Override</span><br><span class="line">public boolean verify(String hostname,SSLSession session)&#123;</span><br><span class="line">return true;</span><br><span class="line">&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>接收任意域名</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SSLSocketFactory sf;</span><br><span class="line">......</span><br><span class="line">sf.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER)</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="二、实验准备"><a href="#二、实验准备" class="headerlink" title="二、实验准备"></a>二、实验准备</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Fiddler</span><br><span class="line">夜神模拟器（有条件的最好用真机）</span><br><span class="line">HFS文件服务器</span><br><span class="line">Stunnel</span><br><span class="line">恶意锁机样本——Wifikillpro.apk</span><br></pre></td></tr></table></figure>
+
+<h2 id="三、实验步骤"><a href="#三、实验步骤" class="headerlink" title="三、实验步骤"></a>三、实验步骤</h2><h3 id="1-http明文传输升级劫持——以酷我音乐为例（CNVD-2021-45684）"><a href="#1-http明文传输升级劫持——以酷我音乐为例（CNVD-2021-45684）" class="headerlink" title="1. http明文传输升级劫持——以酷我音乐为例（CNVD-2021-45684）"></a>1. http明文传输升级劫持——以酷我音乐为例（CNVD-2021-45684）</h3><p><strong>（1）Fiddler环境配置</strong></p>
+<p>​		参考链接：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-268445.htm">Fiddler环境配置</a></p>
+<p><strong>（2）安装酷我音乐，并抓取响应请求</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/1.png" alt="avatar"></p>
+<p>然后，我们可以发现程序下载完成后，显示正常的升级界面</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/2.png" alt="avatar"></p>
+<p>我们进一步分析报文的详细信息：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/3.png" alt="avatar"></p>
+<p>我们可以知道这条请求就是程序的下载请求，对应的就是下载的apk，我们尝试劫持这条请求，将apk替换成我们的恶意锁机程序</p>
+<p><strong>（3）劫持攻击</strong></p>
+<p>​		1）下劫持响应请求断点，可以让我们在劫持特定的请求响应</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">这里我总结集中常见的指令：</span><br><span class="line">bpu+URL:    中断特定URL的全部session请求报文</span><br><span class="line">bpafter+URL:中断特定URL的全部session响应报文</span><br><span class="line">bps+URL:    中断 HTTP 响应状态的指定URL的全部session响应</span><br><span class="line">bpv+URL:    中断指定请求方式的全部 session 响应</span><br><span class="line">bpm+URL:    中断指定请求方式的全部 session 响应。等同于bpv</span><br><span class="line">bpu/bpafter/bps/bpv/bpm  停止断点</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/4.png" alt="avatar"></p>
+<p>​		2）通过HFS文件管理服务器，来模拟请求的服务器</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/5.png" alt="avatar"></p>
+<p>注意路径应与apk下载请求url保持一致，域名设置为我们本机的ip地址</p>
+<p>​		3）重新安装，开始升级</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/6.png" alt="avatar"></p>
+<p>此时，我们将下载请求给劫持下来了，我们只需要更改域名为我们ip地址，再响应就可以下载我们的锁机程序了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/7.png" alt="avatar"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/8.png" alt="avatar"></p>
+<p>此时我们发现我们的锁机样本被用户成功的下载，用户在未知情况下打开，便被锁机了</p>
+<h3 id="2-http-hash验证升级劫持——以酷狗音乐为例（CVND-2021-46587）"><a href="#2-http-hash验证升级劫持——以酷狗音乐为例（CVND-2021-46587）" class="headerlink" title="2. http+hash验证升级劫持——以酷狗音乐为例（CVND-2021-46587）"></a>2. http+hash验证升级劫持——以酷狗音乐为例（CVND-2021-46587）</h3><p><strong>(1) 安装酷狗音乐，抓取响应请求</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/10.png" alt="avatar"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">我们可以发现响应的结果中包含hash值，下载的链接，我们只需要将此响应的hash值替换成我们恶意应用的hash值，然后将下载的url劫持为我们本地的即可</span><br></pre></td></tr></table></figure>
+
+<p><strong>（2）劫持升级</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/11.png" alt="avatar"></p>
+<p>我们用文件服务器模拟该url：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/12.png" alt="avatar"></p>
+<p>我们将主机的域名解析更改为我们本地的ip：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/13.png" alt="avatar"></p>
+<p>我们查取我们恶意程序的hash值：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/14.png" alt="avatar"></p>
+<p>我们劫持更新响应的url：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/15.png" alt="avatar"></p>
+<p>开始升级替换：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/16.png" alt="avatar"></p>
+<p>我们成功替换hash值，并点击升级：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/17.png" alt="avatar"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/18.png" alt="avatar"></p>
+<h3 id="3-https-hash验证升级劫持——以学而思网课为例（CVND-2021-169938）"><a href="#3-https-hash验证升级劫持——以学而思网课为例（CVND-2021-169938）" class="headerlink" title="3. https+hash验证升级劫持——以学而思网课为例（CVND-2021-169938）"></a>3. https+hash验证升级劫持——以学而思网课为例（CVND-2021-169938）</h3><p><strong>（1）配置stunnel，实现https下载</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">由于我们的HFS文件服务器只能支持http访问，但是对于当下市面上大多是https传输，所以我们可以结合stunnel+HFS实现https访问下载</span><br></pre></td></tr></table></figure>
+
+<p>stunnel配置：详细见<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-268459.htm">stunnel配置</a></p>
+<p><strong>（2）我们劫持请求报文</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/19.png" alt="avatar"></p>
+<p>我们将响应的报文保存下来，并修改其对应的MD5值</p>
+<p><strong>（3） 我们用HFS模拟下载的URL链接</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/20.png" alt="avatar"></p>
+<p><strong>（4） 由于是采用https传输，我们需要借助工具stunnel，才能实现https传输</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/21.png" alt="avatar"></p>
+<p>我们配置好后，就可以https访问了</p>
+<p><strong>（5）我们进行截获</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/22.png" alt="avatar"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0016/23.png" alt="avatar"></p>
+<p>​		重新启动，我们发现可以升级截获成功</p>
+<h2 id="四、实验总结"><a href="#四、实验总结" class="headerlink" title="四、实验总结"></a>四、实验总结</h2><p>我们总结了当下APP升级劫持攻击的常见形式，并分别对三种不同形式的升级劫持攻击做了一个具体的案例描述，可以发现都是通过抓包劫持替换实现的，恶意攻击者可以在用户手机中安装证书，就可以使用http&#x2F;https中间人攻击，来劫持升级报文。我们可以发现当下大部分主流的APP都存在这种漏洞，并以此对提交的三个漏洞做了一个讲解，对于一些其他的APP，通常采用加密算法加密，这样获取报文的情况较难。</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/14/bug0016/" title="Android App漏洞之战（16）——通信漏洞的案例实操">http://security-kitchen.com/2023/02/14/bug0016/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0015/" rel="prev" title="Android App漏洞之战（15）——Https（http）通信漏洞详解">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（15）——Https（http）通信漏洞详解
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0017/" rel="next" title="Android App漏洞之战（17）——验证码漏洞挖掘详解">
+      Android App漏洞之战（17）——验证码漏洞挖掘详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E6%BC%8F%E6%B4%9E%E4%BB%8B%E7%BB%8D"><span class="nav-text">一、漏洞介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link"><span class="nav-text"></span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90"><span class="nav-text">二、原理解析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%AE%9E%E9%AA%8C%E5%87%86%E5%A4%87"><span class="nav-text">二、实验准备</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E9%AA%8C%E6%AD%A5%E9%AA%A4"><span class="nav-text">三、实验步骤</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-http%E6%98%8E%E6%96%87%E4%BC%A0%E8%BE%93%E5%8D%87%E7%BA%A7%E5%8A%AB%E6%8C%81%E2%80%94%E2%80%94%E4%BB%A5%E9%85%B7%E6%88%91%E9%9F%B3%E4%B9%90%E4%B8%BA%E4%BE%8B%EF%BC%88CNVD-2021-45684%EF%BC%89"><span class="nav-text">1. http明文传输升级劫持——以酷我音乐为例（CNVD-2021-45684）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-http-hash%E9%AA%8C%E8%AF%81%E5%8D%87%E7%BA%A7%E5%8A%AB%E6%8C%81%E2%80%94%E2%80%94%E4%BB%A5%E9%85%B7%E7%8B%97%E9%9F%B3%E4%B9%90%E4%B8%BA%E4%BE%8B%EF%BC%88CVND-2021-46587%EF%BC%89"><span class="nav-text">2. http+hash验证升级劫持——以酷狗音乐为例（CVND-2021-46587）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-https-hash%E9%AA%8C%E8%AF%81%E5%8D%87%E7%BA%A7%E5%8A%AB%E6%8C%81%E2%80%94%E2%80%94%E4%BB%A5%E5%AD%A6%E8%80%8C%E6%80%9D%E7%BD%91%E8%AF%BE%E4%B8%BA%E4%BE%8B%EF%BC%88CVND-2021-169938%EF%BC%89"><span class="nav-text">3. https+hash验证升级劫持——以学而思网课为例（CVND-2021-169938）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">四、实验总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

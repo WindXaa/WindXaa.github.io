@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言本文主要介绍Android http&#x2F;https方面的安全漏洞问题，并会从原理并结合案例来逐一讲解，本文一部分参考网络上一些博客，并在相应部分给出链接 本文第二节主要讲述Android http&#x2F;https相关的基础知识 本文第三节为漏洞原理解析和漏洞复现 本文第四节为Android https转包漏洞介绍">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（15）——Https（http）通信漏洞详解">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/14/bug0015/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言本文主要介绍Android http&#x2F;https方面的安全漏洞问题，并会从原理并结合案例来逐一讲解，本文一部分参考网络上一些博客，并在相应部分给出链接 本文第二节主要讲述Android http&#x2F;https相关的基础知识 本文第三节为漏洞原理解析和漏洞复现 本文第四节为Android https转包漏洞介绍">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/9.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/13.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/30.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/31.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/17.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/23.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/24.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/25.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/26.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/28.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/27.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/29.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/33.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/34.png">
+<meta property="article:published_time" content="2023-02-14T01:01:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.113Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/14/bug0015/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（15）——Https（http）通信漏洞详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/14/bug0015/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（15）——Https（http）通信漏洞详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-14 09:01:19" itemprop="dateCreated datePublished" datetime="2023-02-14T09:01:19+08:00">2023-02-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>本文主要介绍Android http&#x2F;https方面的安全漏洞问题，并会从原理并结合案例来逐一讲解，本文一部分参考网络上一些博客，并在相应部分给出链接</p>
+<p>本文第二节主要讲述Android http&#x2F;https相关的基础知识</p>
+<p>本文第三节为漏洞原理解析和漏洞复现</p>
+<p>本文第四节为Android https转包漏洞介绍</p>
+<span id="more"></span>
+<h2 id="二、基础知识"><a href="#二、基础知识" class="headerlink" title="二、基础知识"></a>二、基础知识</h2><h3 id="1-加密算法"><a href="#1-加密算法" class="headerlink" title="1.加密算法"></a>1.加密算法</h3><h4 id="（1）对称加密"><a href="#（1）对称加密" class="headerlink" title="（1）对称加密"></a>（1）对称加密</h4><p>对称加密算法是双方都持有相同的密钥进行通信，加密速度很快</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/1.png" alt="image-20211204145051628"></p>
+<p>特点：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">a.加密和解密都是用同一个秘钥</span><br><span class="line">b.加密、解密效率高</span><br><span class="line">c.秘钥被窃取，容易造成数据不安全</span><br><span class="line">常见的对称加密算法有DES、3DES、AES等，这里我们就不深入讲解了</span><br></pre></td></tr></table></figure>
+
+<p>缺点：</p>
+<p>上面的对称加密模型最大的问题就是，对称加密模型需要一个安全的信道来传输对称密钥，但是如果真的存在一个真正安全的信道，那直接用这个信道来传输数据就可以了，这就有点矛盾了</p>
+<h4 id="（2）非对称加密"><a href="#（2）非对称加密" class="headerlink" title="（2）非对称加密"></a>（2）非对称加密</h4><p>非对称加密，是为了解决对称加密中的安全问题而诞生，含有一对密钥：公钥和私钥，发送方用公钥进行加密，公钥可以被公开，接收方用私钥进行解密，私钥不可公开</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/2.png" alt="image-20211204150154475"></p>
+<p>特点：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">a.用公钥加密用私钥解密</span><br><span class="line">b.加密、解密相对于对称加密效率更低，但是比对称加密更安全</span><br><span class="line">c.公钥可能被中间人伪造，造成数据不安全</span><br><span class="line">常见的非对称加密算法有RSA、DSA等</span><br></pre></td></tr></table></figure>
+
+<p>缺点：</p>
+<p>如何保证加密的是接收方的公钥，如何安全的传输公钥</p>
+<h3 id="2-信息安全问题"><a href="#2-信息安全问题" class="headerlink" title="2.信息安全问题"></a>2.信息安全问题</h3><p>我们在传输数据的过程中往往着眼于三个方面的安全问题：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）信息的保密性</span><br><span class="line">（<span class="number">2</span>）信息的完整性</span><br><span class="line">（<span class="number">3</span>）身份识别</span><br></pre></td></tr></table></figure>
+
+<h4 id="（1）信息的保密性"><a href="#（1）信息的保密性" class="headerlink" title="（1）信息的保密性"></a>（1）信息的保密性</h4><p>我们一般会使用各种加密算法对我们传输的数据信息进行加密，即使用上面的对称加密和非对称加密来完成，但无论是对称加密还是非对称加密都存在一个共同的安全问题：<code>密钥如何传递，而且提高传输速率</code>，一般公用的方法是采用<code>对称加密+非对称加密结合</code>，即双方都在使用对称加密进行传输，但是会存在密钥不能保证安全性的问题，此时我们使用公钥对对称密钥进行加密，然后接收方使用私钥对对称密钥进行解密，这样就可以解决这个问题</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/3.png" alt="image-20211204151540175"></p>
+<h4 id="（2）信息的完整性（数字签名）"><a href="#（2）信息的完整性（数字签名）" class="headerlink" title="（2）信息的完整性（数字签名）"></a>（2）信息的完整性（数字签名）</h4><p>数据在传输的过程中，我们的信息可能被第三方劫持篡改，所以我们要保证信息的完整性，一般通过使用散列函数如SHA1，MD5将传输内容hash依次获得hash值，即摘要。客户端使用服务端的公钥对摘要和信息内容进行加密，传输给服务端，服务端使用私钥进行解密，然后用相同的hash算法对原始内容进行hash，然后与摘要值对比，如果一直，说明信息是完整的</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/4.png" alt="image-20211204152606806"></p>
+<p>举例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Android APP应用一般就具有签名验证机制，以防止恶意攻击者在对APP进行逆向之后，重打包，一般来说Android APP的签名机制分为3类：</span><br><span class="line">（1）java本地验证，在java代码中有hash函数验证，我们通常搜索signature定位到目标代码段，直接删除或hook该代码段即可</span><br><span class="line">（2）so本地验证，为了加强逆向难度，很多公司会将APP验证写在so层，这一般我们通过IDA动态调试，获取代码段然后NOP即可</span><br><span class="line">（3）网络服务器验证，一般来说这种进行网络hash验证，一般这种通过抓包，但有一些加密后变很难处理了</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）身份识别（数字证书）"><a href="#（3）身份识别（数字证书）" class="headerlink" title="（3）身份识别（数字证书）"></a>（3）身份识别（数字证书）</h4><p>我们在信息传输过程中，通常要验证信息的发送方的身份，我们将发送端的公钥发送给接收端，发送端通过把自己的内容使用私钥加密然后发送给接收端，接收端只能使用发送端的公钥加密，自然就验证了发送端的身份</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/5.png" alt="image-20211204154251711"></p>
+<p>数字证书：</p>
+<p>但是上述过程中存在一个问题，在传输的过程中，客户端如何获得服务器的公钥呢？当服务器分发给客户端，如果一开始服务端发送的公钥到客户端就被第三方劫持，然后第三方自己伪造一对密钥，将公钥发送给客户端，当服务端发生数据给客户端的时候，中间人就将信息劫持，用一开始劫持的公钥进行解密，然后将自己的私钥将数据发送给客户端，而客户端收到后使用公钥解密，这个过程中中间人是透明的，就可以获取信息了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/6.png" alt="image-20211204162208265"></p>
+<p>为了防止这种中间人攻击，数字证书就出现了，其实是基于上面所说的私钥加密数据，公钥解密来验证其身份</p>
+<p>数字证书是由权威的CA（Certificate Authority）机构给服务端进行颁发，CA机构通过服务端提供的相关信息生成证书，证书内容包含了持有人的相关信息，服务器的公钥，签署者签名信息（数字签名）等，最重要的是公钥在数字证书中</p>
+<p>数字证书由权威的CA（Certificate Authority）机构给服务端进行颁发，CA机构通过服务端提供的相关信息生成证书，证书内容包含了持有人的相关信息，服务器的公钥，签署者签名信息（数字签名）等，最重要的是<code>公钥在数字证书</code>中</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">(1)数字证书是如何保证公钥来自于请求的服务器呢？</span><br><span class="line">数字证书上由持有人的相关信息，通过这点可以确定其不是一个中间人</span><br><span class="line">(2)如何保证数字证书为真呢？</span><br><span class="line">一个证书中含有三个部分:&quot;证书内容，散列算法，加密密文&quot;，证书内容会被散列算法hash计算出hash值，然后使用CA机构提供的私钥进行RSA加密</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/7.png" alt="image-20211204162925136"></p>
+<p>客户端完成验证过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">当客户端发起请求是，服务端将该数字证书发送到客户端，客户端通过CA机构提供的公钥对加密密文来进行解密获得散列值（数字签名），同时将证书内容使用相同的散列算法进行Hash得到另一个散列值，比对两个散列值，如果两者相等则说明证书没问题</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/8.png" alt="image-20211204163230226"></p>
+<p>一些常见的证书分类：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">X.509#DER 二进制格式证书，常用后缀.cer .crt</span><br><span class="line">X.509#PEM 文本格式证书，常用后缀.pem</span><br><span class="line">有的证书内容是只包含公钥（服务器的公钥），如.crt、.cer、.pem</span><br><span class="line">有的证书既包含公钥又包含私钥（服务器的私钥），如.pfx、.p12</span><br></pre></td></tr></table></figure>
+
+<p>为了保证证书的一致性，国际电信联盟设计了一套专门针对证书格式的标准X.509，其核心提供了一种描述证书的格式</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/9.png" alt="image-20211204163230226"></p>
+<h3 id="3-Http-x2F-Https详解"><a href="#3-Http-x2F-Https详解" class="headerlink" title="3.Http&#x2F;Https详解"></a>3.Http&#x2F;Https详解</h3><h4 id="（1）TLS-x2F-SSL"><a href="#（1）TLS-x2F-SSL" class="headerlink" title="（1）TLS&#x2F;SSL"></a>（1）TLS&#x2F;SSL</h4><p>http:超文本传输协议，采用明文的方式去传输数据，经过我们上文的分析，在这个过程中很容易导致中间人攻击，因此为了进一步增强数据传输的安全性，开始出现https，而在此之前我们就需要了解一下TLS&#x2F;SSL</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SSL：（Secure Socket Layer，安全套接字层），位于可靠的面向连接的网络层协议和应用层协议之间的一种协议层。SSL通过互相认证、使用数字签名确保完整性、使用加密确保私密性，以实现客户端和服务器之间的安全通讯</span><br><span class="line">TLS：(Transport Layer Security，传输层安全协议)，用于两个应用程序之间提供保密性和数据完整性</span><br></pre></td></tr></table></figure>
+
+<p>我们先看一下SSL和TLS的区别：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">简而言之，TLS只是SSL后来迭代的版本而已，在1994年，NetScape设计了SSL协议，1999年，互联网标准化组织ISOC接替NetScape公司，发布了SSL的升级版TLS 1.0版，因此可以理解为TLS 1.0 = SSL 3.1，只是SSL后来的的版本而已</span><br></pre></td></tr></table></figure>
+
+<p>SSL协议即用到了对称加密也用到了非对称加密(公钥加密)，在建立传输链路时，SSL首先对对称加密的密钥使用公钥进行非对称加密，链路建立好之后，SSL对传输内容使用对称加密</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1.对称加密</span><br><span class="line">速度高，可加密内容较大，用来加密会话过程中的消息</span><br><span class="line"></span><br><span class="line">2.公钥加密</span><br><span class="line">加密速度较慢，但能提供更好的身份认证技术，用来加密对称加密的密钥</span><br></pre></td></tr></table></figure>
+
+<p>因此，HTTPs &#x3D; HTTP + TLS&#x2F;SSL</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/10.png" alt="image-20211204165055568"></p>
+<h4 id="（2）HTTPs的单向认证和双向认证"><a href="#（2）HTTPs的单向认证和双向认证" class="headerlink" title="（2）HTTPs的单向认证和双向认证"></a>（2）HTTPs的单向认证和双向认证</h4><h5 id="lt-1-gt-单向认证"><a href="#lt-1-gt-单向认证" class="headerlink" title="&lt;1&gt;单向认证"></a>&lt;1&gt;单向认证</h5><p>Https在建立Socket连接之前，需要进行握手，具体流程：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/11.png" alt="image-20211204165055568"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>客户端向服务端发送SSL协议版本号、加密算法种类、随机数等信息。</span><br><span class="line"><span class="number">2.</span>服务端给客户端返回SSL协议版本号、加密算法种类、随机数等信息，同时也返回服务器端的证书，即公钥证书</span><br><span class="line"><span class="number">3.</span>客户端使用服务端返回的信息验证服务器的合法性，包括：</span><br><span class="line">    (<span class="number">1</span>)证书是否过期</span><br><span class="line">    (<span class="number">2</span>)发型服务器证书的CA是否可靠</span><br><span class="line">    (<span class="number">3</span>)返回的公钥是否能正确解开返回证书中的数字签名</span><br><span class="line">    (<span class="number">4</span>)服务器证书上的域名是否和服务器的实际域名相匹配、验证通过后，将继续进行通信，否则，终止通信</span><br><span class="line"><span class="number">4.</span>客户端向服务端发送自己所能支持的对称加密方案，供服务器端进行选择</span><br><span class="line"><span class="number">5.</span>服务器端在客户端提供的加密方案中选择加密程度最高的加密方式。</span><br><span class="line"><span class="number">6.</span>服务器将选择好的加密方案通过明文方式返回给客户端</span><br><span class="line"><span class="number">7.</span>客户端接收服务端返回的加密方式后，使用该加密方式生成产生随机码，用作通信过程中对称加密的密钥，使用服务端返回的公钥进行加密，将加密后的随机码发送至服务器</span><br><span class="line"><span class="number">8.</span>服务器收到客户端返回的加密信息后，使用自己的私钥进行解密，获取对称加密密钥。在接下来的会话中，服务器和客户端将会使用该密码进行对称加密，保证通信过程中信息的安全</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-2-gt-双向认证"><a href="#lt-2-gt-双向认证" class="headerlink" title="&lt;2&gt;双向认证"></a>&lt;2&gt;双向认证</h5><p>双向认证和单向认证原理基本差不多，只是除了客户端需要认证服务端以外，增加了服务端对客户端的认证，具体过程如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/12.png" alt="image-20211204165055568"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>客户端向服务端发送SSL协议版本号、加密算法种类、随机数等信息。</span><br><span class="line"><span class="number">2.</span>服务端给客户端返回SSL协议版本号、加密算法种类、随机数等信息，同时也返回服务器端的证书，即公钥证书</span><br><span class="line"><span class="number">3.</span>客户端使用服务端返回的信息验证服务器的合法性，包括：</span><br><span class="line">    (<span class="number">1</span>)证书是否过期</span><br><span class="line">    (<span class="number">2</span>)发型服务器证书的CA是否可靠</span><br><span class="line">    (<span class="number">3</span>)返回的公钥是否能正确解开返回证书中的数字签名</span><br><span class="line">    (<span class="number">4</span>)服务器证书上的域名是否和服务器的实际域名相匹配、验证通过后，将继续进行通信，否则，终止通信</span><br><span class="line"><span class="number">4.</span>服务端要求客户端发送客户端的证书，客户端会将自己的证书发送至服务端</span><br><span class="line"><span class="number">5.</span>验证客户端的证书，通过验证后，会获得客户端的公钥</span><br><span class="line"><span class="number">6.</span>客户端向服务端发送自己所能支持的对称加密方案，供服务器端进行选择</span><br><span class="line"><span class="number">7.</span>服务器端在客户端提供的加密方案中选择加密程度最高的加密方式</span><br><span class="line"><span class="number">8.</span>将加密方案通过使用之前获取到的公钥进行加密，返回给客户端</span><br><span class="line"><span class="number">9.</span>客户端收到服务端返回的加密方案密文后，使用自己的私钥进行解密，获取具体加密方式，而后，产生该加密方式的随机码，用作加密过程中的密钥，使用之前从服务端证书中获取到的公钥进行加密后，发送给服务端</span><br><span class="line"><span class="number">10.</span>服务端收到客户端发送的消息后，使用自己的私钥进行解密，获取对称加密的密钥，在接下来的会话中，服务器和客户端将会使用该密码进行对称加密，保证通信过程中信息的安全。</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-Android-Http网络开发"><a href="#4-Android-Http网络开发" class="headerlink" title="4.Android Http网络开发"></a>4.Android Http网络开发</h3><p>我们要学习Https通信漏洞挖掘，首先就需要掌握基本的Android http网络开发，因为开发和逆向漏洞总是相互相成的，Android 的HTTP的网络通信框架一般包括两类：第一类是原生的Android网络HTTP通信库，原生网路通信库主要通过HttpURLConnection以及HttpClient两个类完成，但是Android6.0后，Andriod中的SDK就去掉了HttpClient的支持，Android 9后，Android就直接取消了HttpClient的支持，但是由于网络通信的操作涉及异步、多线程和效率的问题，HttpURLConnection中并未对这些操作进行完整的封装，就出现第二类网络通信框架——第三方HTTP(s)的网络请求框架，一般为：okhttp、Volley等，这里我们只介绍当下使用比较广泛的框架</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/13.png" alt="image-20211205134303663"></p>
+<h4 id="（1）HttpURLConnection"><a href="#（1）HttpURLConnection" class="headerlink" title="（1）HttpURLConnection"></a>（1）HttpURLConnection</h4><p>获取HttpURLConnection实例，通过openConnection()获取</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">URL</span> <span class="variable">url</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">URL</span>(<span class="string">&quot;http://www,baidu.com&quot;</span>);</span><br><span class="line"><span class="type">HttpURLConnection</span> <span class="variable">connection</span> <span class="operator">=</span> (HttpURLConnection) url.openConnection();</span><br></pre></td></tr></table></figure>
+
+<p>设置HTTP请求使用的方法，<code>GET</code>表示希望从服务器那里获取数据，<code>POST</code>表示提交数据给服务器</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">connection.setRequestMethod(<span class="string">&quot;GET&quot;</span>);</span><br><span class="line">或者</span><br><span class="line">connection.setRequestMethod(<span class="string">&quot;POST&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>再就是一些自由定制，如设置连接超时、读取超时的毫秒数、服务器的一些消息头等</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">connection.setRequestProperty(<span class="string">&quot;token&quot;</span>,<span class="string">&quot;wwanghai&quot;</span>);<span class="comment">//设置请求参数</span></span><br><span class="line">connection.setConnectTimeout(<span class="number">8000</span>);<span class="comment">//设置连接超时时间</span></span><br><span class="line">connection.setReadTimeout(<span class="number">8000</span>);<span class="comment">//设置接收超时时间</span></span><br></pre></td></tr></table></figure>
+
+<p>调用getInputStream()方法获取服务器返回的输入流</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">InputStream</span> <span class="variable">in</span> <span class="operator">=</span> connection.getInputStream();</span><br></pre></td></tr></table></figure>
+
+<p>我们可以用字节数组保存读取的数据</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="variable">bufferSize</span> <span class="operator">=</span> <span class="number">1024</span>;</span><br><span class="line"><span class="type">byte</span>[] buffer = <span class="keyword">new</span> <span class="title class_">byte</span>[bufferSize];</span><br><span class="line"><span class="type">StringBuffer</span> <span class="variable">sb</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">StringBuffer</span>();</span><br><span class="line"><span class="keyword">while</span> (in.read(buffer)!=-<span class="number">1</span>)&#123;</span><br><span class="line">     sb.append(<span class="keyword">new</span> <span class="title class_">String</span>(buffer));</span><br><span class="line">     &#125;</span><br></pre></td></tr></table></figure>
+
+<p>最后调用disconnect()方法将HTTP连接关闭掉</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">connection.disconnect();</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）okhttp3"><a href="#（2）okhttp3" class="headerlink" title="（2）okhttp3"></a>（2）okhttp3</h4><p>okHttp的项目主页地址是：<a target="_blank" rel="noopener" href="https://github.com/square/okhttp">okHttp</a></p>
+<p>我们需要在项目中添加依赖，编辑app&#x2F;build.gradle文件</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">implementation(<span class="string">&quot;com.squareup.okhttp3:okhttp:3.12.0&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<p>首先创建一个OkHttpClient的实例</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">OkHttpClient</span> <span class="variable">client</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">OkHttpClient</span>();</span><br><span class="line">或者加一些设置</span><br><span class="line"><span class="type">OkHttpClient</span> <span class="variable">client</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">OkHttpClient</span>.Builder()</span><br><span class="line">                                        .readTimeout(<span class="number">5</span>, TimeUnit.SECONDS)  <span class="comment">//设置读超时</span></span><br><span class="line">                                        .writeTimeout(<span class="number">5</span>, TimeUnit.SECONDS)  <span class="comment">//设置写超时</span></span><br><span class="line">                                        .connectTimeout(<span class="number">15</span>,TimeUnit.SECONDS) <span class="comment">//设置连接超时</span></span><br><span class="line">                                        .retryOnConnectionFailure(<span class="literal">true</span>) <span class="comment">//是否自动重连</span></span><br><span class="line">                                        .build();</span><br></pre></td></tr></table></figure>
+
+<p>如果要发起HTTP请求，就需要创建一个Request对象</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">GET:</span><br><span class="line">    <span class="type">Request</span> <span class="variable">request</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Request</span>.Builder().build(); <span class="comment">//这是一个空的对象</span></span><br><span class="line">    实际使用中</span><br><span class="line">    <span class="type">Request</span> <span class="variable">request</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Request</span>.Builder()</span><br><span class="line">                                  .url(<span class="string">&quot;http://www,baidu.com&quot;</span>)</span><br><span class="line">                                  .header(<span class="string">&quot;token&quot;</span>,<span class="string">&quot;wanghai&quot;</span>)</span><br><span class="line">                                  .build();</span><br><span class="line">POST：</span><br><span class="line">    <span class="comment">//需要先构建一个RequestBody来存放待提交的参数，然后再传入Request</span></span><br><span class="line">    <span class="type">RequestBody</span> <span class="variable">requestBody</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">FormBody</span>.Builder()</span><br><span class="line">                                            .add(<span class="string">&quot;username&quot;</span>,<span class="string">&quot;damin&quot;</span>)</span><br><span class="line">                                            .add(<span class="string">&quot;password&quot;</span>,<span class="string">&quot;123456&quot;</span>)</span><br><span class="line">                                            .build();</span><br><span class="line">	<span class="type">Request</span> <span class="variable">request</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Request</span>.Builder()</span><br><span class="line">                                  .url(<span class="string">&quot;http://www,baidu.com&quot;</span>)</span><br><span class="line">                                  .post(requestBody)</span><br><span class="line">                                  .build();</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>调用OkHttpClient的newCall()方法来创建一个Call对象，并调用execute()方法来发送请求并获取服务器返回的数据，response对象就是服务器返回的数据</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Response</span> <span class="variable">response</span> <span class="operator">=</span> client.newCall(request).execute();</span><br><span class="line"><span class="type">String</span> <span class="variable">responseData</span> <span class="operator">=</span> response.body().string();</span><br></pre></td></tr></table></figure>
+
+<p>还可以使用异步方式来获取数据，Android中大部分都使用异步方式来获取数据，通过enqueue（）函数产生一次真实的网络请求，通过onResponse（）函数进行回调</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">client.newCall(request).enqueue(<span class="keyword">new</span> <span class="title class_">Callback</span>() &#123;</span><br><span class="line">               <span class="meta">@Override</span></span><br><span class="line">               <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onFailure</span><span class="params">(Call call, IOException e)</span> &#123;</span><br><span class="line">                   call.cancel();</span><br><span class="line">               &#125;</span><br><span class="line"></span><br><span class="line">               <span class="meta">@Override</span></span><br><span class="line">               <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onResponse</span><span class="params">(Call call, Response response)</span> <span class="keyword">throws</span> IOException &#123;</span><br><span class="line">                   <span class="type">String</span> <span class="variable">responseData</span> <span class="operator">=</span> response.body().string();</span><br><span class="line">               &#125;</span><br><span class="line">           &#125;);</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）各自证书的校验方式"><a href="#（3）各自证书的校验方式" class="headerlink" title="（3）各自证书的校验方式"></a>（3）各自证书的校验方式</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）根据 app 内置证书 KeyStore 生成 TrustManager 验证</span><br><span class="line">（<span class="number">2</span>）自定义 SSLSocketFactory(org.apache.http.conn.ssl.SSLSocketFactory)实现 TrustManager 验证策略(httpClient)</span><br><span class="line">（<span class="number">3</span>）自定义SSLSocketFactory(javax.net.ssl.SSLSocketFactory)实现TrustManager 验证策略(HttpsURLConnection,OkHttp3)</span><br><span class="line">（<span class="number">4</span>）自定义的 HostnameVerifier 和 X509TrustManager 实现验证</span><br><span class="line">（<span class="number">5</span>）第三方库中的验证，如 OkHttp3 中的 CertificatePinner(证书锁定)</span><br><span class="line">（<span class="number">6</span>）WebView 加载 Https 页面时证书校验出错，停止加载</span><br></pre></td></tr></table></figure>
+
+<p>下面是比较常见的实现https类的各自证书校验方式：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/30.png" alt="image-20211205163031752"></p>
+<p>下面是证书验证的一些关系示意图，参考链接：<a target="_blank" rel="noopener" href="https://docs.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html">证书关系</a></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/31.png" alt="image-20211205163311496"></p>
+<p>上图中要进行 SSL 会话，必须先建立一个 SSLSocket 对象，而 SSLSocket 对象是通过 SSLSocketFactory 来管理的，SSLSocketFactory 对象则依赖于 SSLContext ，SSLContext 对象的初始化需要 keyManager、TrustManager 和 SecureRandom。TrustManager 对象是我们后文比较关心的，因为正是 TrustManager 负责证书的校验，对网站进行认证，要想确保数据不被中间人抓包分析，就需要实现这个类进行验证，以保障数据的安全性</p>
+<p>在整个过程中 TrustManager 类专门负责校验证书，可以改写 TrustManager 类，实现对证书对校验或让它不要对证书做校验</p>
+<h2 id="三、HTTP-x2F-HTTPs漏洞分析和复现"><a href="#三、HTTP-x2F-HTTPs漏洞分析和复现" class="headerlink" title="三、HTTP&#x2F;HTTPs漏洞分析和复现"></a>三、HTTP&#x2F;HTTPs漏洞分析和复现</h2><h3 id="1-漏洞的安全种类和危害"><a href="#1-漏洞的安全种类和危害" class="headerlink" title="1.漏洞的安全种类和危害"></a>1.漏洞的安全种类和危害</h3><p>Andoid的网络通信中一般采用http明文传输，或使用SSL&#x2F;TLS协议的https密文传输，对于http明文传输来说自然会导致很多漏洞，例如信息泄露漏洞，升级劫持漏洞，验证码口令泄露漏洞等等，而使用https传输的明文，也存在大量的HTTPs证书不校验漏洞，中间人攻击漏洞等等</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/14.png" alt="image-20211205145836325"></p>
+<h3 id="2-HTTP明文传输漏洞"><a href="#2-HTTP明文传输漏洞" class="headerlink" title="2.HTTP明文传输漏洞"></a>2.HTTP明文传输漏洞</h3><h4 id="（1）漏洞案例"><a href="#（1）漏洞案例" class="headerlink" title="（1）漏洞案例"></a>（1）漏洞案例</h4><h5 id="lt-1-gt-酷我音乐APP存在逻辑缺陷漏洞"><a href="#lt-1-gt-酷我音乐APP存在逻辑缺陷漏洞" class="headerlink" title="&lt;1&gt;酷我音乐APP存在逻辑缺陷漏洞"></a>&lt;1&gt;酷我音乐APP存在逻辑缺陷漏洞</h5><p><a target="_blank" rel="noopener" href="https://www.cnvd.org.cn/flaw/show/CNVD-2021-45684">酷我音乐APP存在逻辑缺陷漏洞</a></p>
+<p>漏洞原理：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">酷我音乐APP采用http明文传输，攻击者可以通过利用该漏洞利用代理工具篡改数据包来升级校验，从而导致APP升级过程中恶意软件注入攻击</span><br></pre></td></tr></table></figure>
+
+<p>漏洞复现：</p>
+<p>我们点击检测新版本，可以抓取对应的响应请求，其中下面的是下载请求</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/15.png" alt="image-20211205145836325"></p>
+<p>然后，我们可以发现程序下载完成后，显示正常的升级界面</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/16.png" alt="image-20211205150811779"></p>
+<p>我们可以知道这条请求就是程序的下载请求，对应的就是下载的apk，我们尝试劫持这条请求，将apk替换成我们的恶意锁机程序</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/17.png" alt="image-20211205150811779"></p>
+<p>下劫持响应请求断点，可以让我们在请求响应前劫持</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/18.png" alt="image-20211205150811779"></p>
+<p>通过HFS文件管理服务器，来模拟请求的服务器</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/19.png" alt="image-20211205150811779"></p>
+<p>注意路径应与apk下载请求url保持一致，域名设置为我们本机的ip地址</p>
+<p>重新安装，开始升级</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/20.png" alt="image-20211205150811779"></p>
+<p>然后升级手机被恶意软件劫持</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/21.png" alt="image-20211205150811779"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/22.png" alt="image-20211205150811779"></p>
+<h5 id="lt-2-gt-上海任意门科技有限公司Soul-APP存在信息泄露漏洞"><a href="#lt-2-gt-上海任意门科技有限公司Soul-APP存在信息泄露漏洞" class="headerlink" title="&lt;2&gt; 上海任意门科技有限公司Soul APP存在信息泄露漏洞"></a>&lt;2&gt; 上海任意门科技有限公司Soul APP存在信息泄露漏洞</h5><p><a target="_blank" rel="noopener" href="https://www.cnvd.org.cn/user/myreport/4827046">上海任意门科技有限公司Soul APP存在信息泄露漏洞</a></p>
+<p>信息泄露原理很简单就是利用http明文传输，导致一些账户信息、登录信息的泄露，具体大家可以拿一个http传输的样本去测试，然后自己去查看一些信息问题</p>
+<h5 id="lt-3-gt-酷狗直播存在逻辑缺陷漏洞（hash验证）"><a href="#lt-3-gt-酷狗直播存在逻辑缺陷漏洞（hash验证）" class="headerlink" title="&lt;3&gt;酷狗直播存在逻辑缺陷漏洞（hash验证）"></a>&lt;3&gt;酷狗直播存在逻辑缺陷漏洞（hash验证）</h5><p><a target="_blank" rel="noopener" href="https://www.cnvd.org.cn/flaw/show/4050696">酷狗直播存在逻辑缺陷漏洞（hash验证）</a></p>
+<p>考虑到http明文传输的危害后，一些厂商开始加入hash验证，这也是我们前面讲述过的验证Android应用的完整性，因为每一个Android APP仅拥有唯一的hash值，但是这种我们可以在升级时，同时去替换相应的hash值来达到升级劫持漏洞的过程</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/23.png" alt="image-20211205150811779"></p>
+<p>我们可以发现在一些厂商的报文中会包含hash值验证，所以如果我们直接去注入恶意程序，我们的应用是安装不上去，但是我们对对应的报文进行替换hash值，替换成我们对于的恶意程序的hash值，我们就可以成功的复现上述升级劫持漏洞的过程</p>
+<h4 id="（2）漏洞防护"><a href="#（2）漏洞防护" class="headerlink" title="（2）漏洞防护"></a>（2）漏洞防护</h4><p>通过上面分析，我们发现上述的漏洞都是因为厂家的APP在传输过程中采用了明文传输导致的，因此防护措施：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）HTTPs加密传输</span><br><span class="line">（<span class="number">2</span>）本地hash验证</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-HTTPs密文传输漏洞"><a href="#3-HTTPs密文传输漏洞" class="headerlink" title="3.HTTPs密文传输漏洞"></a>3.HTTPs密文传输漏洞</h3><h4 id="（1）漏洞案例-1"><a href="#（1）漏洞案例-1" class="headerlink" title="（1）漏洞案例"></a>（1）漏洞案例</h4><h5 id="lt-1-gt-忽略SSL证书校验漏洞"><a href="#lt-1-gt-忽略SSL证书校验漏洞" class="headerlink" title="&lt;1&gt; 忽略SSL证书校验漏洞"></a>&lt;1&gt; 忽略SSL证书校验漏洞</h5><p>漏洞原理：</p>
+<p>在自定义实现X509TrustManager时，checkServerTrusted中没有检查证书是否可信，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。由于客户端没有校验服务端的证书，因此攻击者就能与通讯的两端分别创建独立的联系，并交换其所收到的数据，使通讯的两端认为他们正在通过一个私密的连接与对方直接对话，但事实上整个会话都被攻击者完全控制。在中间人攻击中，攻击者可以拦截通讯双方的通话并插入新的内容</p>
+<p>目标程序代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">MyX509TrustManager</span> <span class="keyword">implements</span> <span class="title class_">X509TrustManager</span> &#123;  </span><br><span class="line"><span class="comment">// 检查客户端证书  </span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">checkClientTrusted</span><span class="params">(X509Certificate[] chain, String authType)</span> <span class="keyword">throws</span> CertificateException &#123; </span><br><span class="line">    <span class="comment">//没有校验的话，就代表接收任意的证书</span></span><br><span class="line">&#125;  </span><br><span class="line">  </span><br><span class="line"><span class="comment">// 检查服务器端证书  </span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">checkServerTrusted</span><span class="params">(X509Certificate[] chain, String authType)</span> <span class="keyword">throws</span> CertificateException &#123;  </span><br><span class="line">    <span class="comment">//没有校验的话，就代表接收任意的证书</span></span><br><span class="line">&#125;  </span><br><span class="line">  </span><br><span class="line"><span class="comment">// 返回受信任的X509证书数组  </span></span><br><span class="line"><span class="keyword">public</span> X509Certificate[] getAcceptedIssuers() &#123;  </span><br><span class="line"><span class="keyword">return</span> <span class="literal">null</span>;  </span><br><span class="line">&#125;  </span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<p>在重写WebViewClient的onReceivedSslError方法时，调用proceed忽略证书验证错误信息继续加载页面，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害</p>
+<p>目标程序代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">mywebview.setWebViewClient(<span class="keyword">new</span> <span class="title class_">WebviewClient</span>()&#123;  </span><br><span class="line">  </span><br><span class="line"><span class="meta">@Override</span>  </span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onReceivedError</span><span class="params">(WebView view,<span class="type">int</span> errorCode,String description,String falingUrl)</span>&#123;  </span><br><span class="line">  </span><br><span class="line">    <span class="comment">// TODO Auto generated method stub  </span></span><br><span class="line">    <span class="built_in">super</span>.onReceivedError(view,errorCode,description,fallingUrl) ;  </span><br><span class="line">&#125;  </span><br><span class="line">  </span><br><span class="line"><span class="meta">@Override</span>  </span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">onReceivedSslError</span><span class="params">(WebView view,SslErrorHandler handler,SslError error)</span>  </span><br><span class="line">  </span><br><span class="line">    <span class="comment">// T0D0 Auto-generated method stub  </span></span><br><span class="line">    handler.proceed( );  <span class="comment">//不对证书进行处理</span></span><br><span class="line">&#125;;  </span><br><span class="line">&#125;);  </span><br></pre></td></tr></table></figure>
+
+<p><strong>案例一：京东金融MITM漏洞</strong></p>
+<p>漏洞原理：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">京东金融Ver 2.8.0由于证书校验有缺陷，导致https中间人攻击，攻击者直接可以获取到会话中敏感数据的加密秘钥，另外由于APP没有做应用加固或混淆，因此可以轻松分析出解密算法，利用获取到的key解密敏感数据</span><br></pre></td></tr></table></figure>
+
+<p>登录后捕获的数据：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/24.png" alt="image-20211205150811779"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/25.png" alt="image-20211205150811779"></p>
+<p>安全防护：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）建议自定义实现X509TrustManager时，checkServerTrusted中对服务器信息进行严格校验。  </span><br><span class="line">（<span class="number">2</span>）针对自定义TrustManager,检查checkServerTrusted()函数是否为空实现。  </span><br><span class="line">（<span class="number">3</span>）建议不要重写TrustManager 和HostnameVerifier,使用系统默认的。  </span><br><span class="line">（<span class="number">4</span>）在重写WebViewClient的onReceivedSslError方法时，避免调用proceed忽略证书验证。  </span><br><span class="line">（<span class="number">5</span>）禁止使用proceed()函数忽略证书错误，应该抛给系统进行安全警告</span><br></pre></td></tr></table></figure>
+
+<p>例如，我们在相应的地方加上校验：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/26.png" alt="image-20211205154720291"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/28.png" alt="image-20211205154828588"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/27.png" alt="image-20211205154751251"></p>
+<h5 id="lt-2-gt-忽略域名校验漏洞"><a href="#lt-2-gt-忽略域名校验漏洞" class="headerlink" title="&lt;2&gt;忽略域名校验漏洞"></a>&lt;2&gt;忽略域名校验漏洞</h5><p>在自定义实现HostnameVerifier时，没有在verify中进行严格证书校验，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害</p>
+<p>目标代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">HostnameVerifier</span> <span class="variable">hv</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">HostnameVerifier</span> ()&#123;  </span><br><span class="line">    <span class="meta">@Override</span>  </span><br><span class="line">    <span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">verify</span><span class="params">(String hostname,SSLSession session)</span>&#123;  </span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;  </span><br><span class="line">    &#125;  </span><br><span class="line">&#125;; </span><br></pre></td></tr></table></figure>
+
+<p>在setHostnameVerifier方法中使用ALLOW_ALL_HOSTNAME _VERIFIER,信任所有Hostname,导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害</p>
+<p>目标代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> HttpClient <span class="title function_">getNewHttpClient</span><span class="params">()</span> &#123;  </span><br><span class="line"><span class="keyword">try</span> &#123;  </span><br><span class="line">    <span class="type">KeyStore</span> <span class="variable">trustStore</span> <span class="operator">=</span> KeyStore.getInstance(KeyStore  </span><br><span class="line">    .getDefaultType());  </span><br><span class="line">    trustStore.load(<span class="literal">null</span>, <span class="literal">null</span>);  </span><br><span class="line">    <span class="type">SSLSocketFactory</span> <span class="variable">sf</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">SSLSocketFactory</span>(trustStore);  </span><br><span class="line">    sf.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);  <span class="comment">//这里信任了所以的hostname，导致可能存在中间人攻击</span></span><br><span class="line">    <span class="type">HttpParams</span> <span class="variable">params</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">BasicHttpParams</span>();  </span><br><span class="line">    HttpProtocolParams.setVersion(params, HttpVersion.HTTP_1_1);  </span><br><span class="line">    HttpProtocolParams.setContentCharset(params, HTTP.UTF_8);  </span><br><span class="line">    <span class="type">SchemeRegistry</span> <span class="variable">registry</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">SchemeRegistry</span>();  </span><br><span class="line">    registry.register(<span class="keyword">new</span> <span class="title class_">Scheme</span>(<span class="string">&quot;http&quot;</span>, PlainSocketFactory  </span><br><span class="line">    .getSocketFactory(), <span class="number">80</span>));  </span><br><span class="line">    registry.register(<span class="keyword">new</span> <span class="title class_">Scheme</span>(<span class="string">&quot;https&quot;</span>, sf, <span class="number">443</span>));  </span><br><span class="line">    <span class="type">ClientConnectionManager</span> <span class="variable">ccm</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">ThreadSafeClientConnManager</span>(  </span><br><span class="line">    params, registry);  </span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">DefaultHttpClient</span>(ccm, params);  </span><br><span class="line">&#125; <span class="keyword">catch</span> (Exception e) &#123;  </span><br><span class="line"><span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">DefaultHttpClient</span>();  </span><br><span class="line">&#125;  </span><br><span class="line">&#125; </span><br></pre></td></tr></table></figure>
+
+<p><strong>案例二：<a target="_blank" rel="noopener" href="https://www.cnvd.org.cn/flaw/show/4069106">WPS存在信息泄漏漏洞</a></strong></p>
+<p>WPS采用HTTPs进行通信但是由于证书校验问题，可以被获取到敏感信息，从而导致信息泄漏漏洞，这里和上面一致，就不再重新演示了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/29.png" alt="image-20211205155437510"></p>
+<p>安全防护：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">（1）在自定义实现HostnameVerifier时，在verify中对Hostname进行严格校验</span><br><span class="line">（2）建议setHostnameVerifier方法中使用STRICT_HOSTNAME_VERIFIER进行严格证书校验，避免使用ALLOW_ALL_HOSTNAME_VERIFIER</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-3-gt-作业帮存在https升级劫持漏洞"><a href="#lt-3-gt-作业帮存在https升级劫持漏洞" class="headerlink" title="&lt;3&gt;作业帮存在https升级劫持漏洞"></a>&lt;3&gt;作业帮存在https升级劫持漏洞</h5><p>大家都知道https是采用加密方式来进行通信，一般来说除非证书的设置方面存在漏洞，否则很难直接去截获报文信息，但是在我挖掘漏洞的过程中，发现一个新的思路，可能这是很多厂商比较懒的原因，直接升级https后，传输的报文数据还是原来的数据，所以我们可以选择采用http旧版本的APP，抓取明文信息，修改后，使用于新版的信息，也可以导致劫持的漏洞</p>
+<p>当然这个过程中也需要解决接收方证书信任的问题，还需要模拟https的请求方式，这里可以使用<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-268459.htm">stunnel配置</a>，这里主要提供一种思路，其他操作步骤和上述一直，就不再重复演示了</p>
+<h4 id="（2）漏洞防护-1"><a href="#（2）漏洞防护-1" class="headerlink" title="（2）漏洞防护"></a>（2）漏洞防护</h4><p>针对于Android https的开发过程中常见的安全缺陷：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1</span>)在自定义实现X509TrustManager时，checkServerTrusted中没有检查证书是否可信，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</span><br><span class="line"><span class="number">2</span>)在重写WebViewClient的onReceivedSslError方法时，调用proceed忽略证书验证错误信息继续加载页面，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</span><br><span class="line"><span class="number">3</span>)在自定义实现HostnameVerifier时，没有在verify中进行严格证书校验，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</span><br><span class="line"><span class="number">4</span>)在setHostnameVerifier方法中使用ALLOW_ALL_HOSTNAME_VERIFIER，信任所有Hostname，导致通信过程中可能存在中间人攻击，造成敏感数据劫持危害。</span><br></pre></td></tr></table></figure>
+
+<h2 id="四、Android-绕过https的SSL-Pining"><a href="#四、Android-绕过https的SSL-Pining" class="headerlink" title="四、Android 绕过https的SSL Pining"></a>四、Android 绕过https的SSL Pining</h2><p>我们在对Android APP抓包时，经常会出现HTTPS报文通过MITM代理后不被信任的问题，有些https在设置好证书后，会出现：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">unknown</span><br><span class="line">加密的乱码</span><br><span class="line">报错无法抓包</span><br></pre></td></tr></table></figure>
+
+<p>这是因为对方的https采用了 SSL pinning</p>
+<h3 id="1-SSL-pinning"><a href="#1-SSL-pinning" class="headerlink" title="1.SSL pinning"></a>1.SSL pinning</h3><p>SSL pining &#x3D; 证书绑定 &#x3D; SSL证书绑定</p>
+<p>表示对方的app只允许承认自己特定的证书，这导致MITM的证书不被识别，不运行，从而导致MITM无法解密看到https的明文数据</p>
+<h3 id="2-Android-7-0后破解https-的ssl-pinning"><a href="#2-Android-7-0后破解https-的ssl-pinning" class="headerlink" title="2.Android 7.0后破解https 的ssl pinning"></a>2.Android 7.0后破解https 的ssl pinning</h3><p>Android7.0后，系统做了改动：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">APP 默认不信任用户域的证书。之前把MITM的ssl证书，安装到 受信任的凭据 -&gt; 用户 就没用了，因为不受信任了。只信任（安装到）系统域的证书</span><br></pre></td></tr></table></figure>
+
+<p>因此这导致我们使用如Fiddler、Charles等抓包软件导入证书后，仍然不能在捕获https的密文，甚至无法解析请求</p>
+<p>解决思路：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">（1）让系统信任Charles的ssl证书</span><br><span class="line">	改自己的app的配置，允许https抓包，这就需要有app的源码</span><br><span class="line">	把证书放到受系统信任的系统证书中去。前提是手机已root</span><br><span class="line">（2）绕开https不去校验</span><br><span class="line">	使用基于Xposed等框架的JustTrustMe、基于Frida框架的r0capyure等</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-证书绕过原理"><a href="#3-证书绕过原理" class="headerlink" title="3.证书绕过原理"></a>3.证书绕过原理</h3><p>我们基于上文提出第二种思路，详细解析当下的JustTrustMe为代表的证书绕过原理</p>
+<p>通过前面我们了解到，证书验证中到关键是 TrustManager，而绕过证书验证就需要从它入手。xpsoed 上证书校验的绕过插件就是这么干的，目前比较流行的两款基于 xposed 的绕过证书验证的模块有两款 JustTrustMe 和 SSLkiller，针对HttpsURLConnection，OkHttp 框架各自的证书校验函数</p>
+<p>这两款工具通过 hook 这些关键函数，或替换 TrustManager(信任所有证书)或令其验证函数直接失效(函数替换，不做任何校验)，以达到绕过的目的</p>
+<p>绕过证书的实现原理图，下图参考博客<a target="_blank" rel="noopener" href="https://juejin.cn/post/6992844908788711438">安卓 https 证书校验和绕过</a>：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/33.png" alt="image-20211205155437510"></p>
+<h3 id="4-工具使用"><a href="#4-工具使用" class="headerlink" title="4.工具使用"></a>4.工具使用</h3><h4 id="（1）Xposed-JustTrustMe"><a href="#（1）Xposed-JustTrustMe" class="headerlink" title="（1）Xposed+JustTrustMe"></a>（1）Xposed+JustTrustMe</h4><p><a target="_blank" rel="noopener" href="https://github.com/Fuzion24/JustTrustMe">JustTrustMe下载地址</a></p>
+<p>使用步骤十分简单，就在手机上安装xposed框架，具体安装参考前文帖子，然后将JustTrustMe模块安装就可以使用了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0015/34.png" alt="image-20211205184421953"></p>
+<h4 id="（2）Frida脚本"><a href="#（2）Frida脚本" class="headerlink" title="（2）Frida脚本"></a>（2）Frida脚本</h4><p>下面是两种比较火的frida抓包脚本</p>
+<p><a target="_blank" rel="noopener" href="https://codeshare.frida.re/@masbog/frida-android-unpinning-ssl/">frida-android-unpinning-ssl</a></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/r0ysue/r0capture">r0capture</a></p>
+<p>使用步骤：</p>
+<p>开启frida_server注入脚本就可以了，具体可以参考博客网址</p>
+<h2 id="五、实验总结"><a href="#五、实验总结" class="headerlink" title="五、实验总结"></a>五、实验总结</h2><p>本文从Android Http&#x2F;Https通信过程出发，讲述了Android Http&#x2F;Https通信漏洞产生的原因，也拿了很多的漏洞复现实例来进行一一说明，最后还简单介绍了当下对https转包的处理和原因，当然这部分东西很多还需要进一步深入的研究，本文可能还未归纳完全所有的情况，就请大家指正了</p>
+<h2 id="六、参考文献"><a href="#六、参考文献" class="headerlink" title="六、参考文献"></a>六、参考文献</h2><p>Android http&#x2F;https原理解析：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">第一行代码</span><br><span class="line">Frida 逆向和抓包实战</span><br><span class="line">https://zhuanlan.zhihu.com/p/330393659</span><br><span class="line">https://xiaoyue26.github.io/2018/09/26/2018-09/%E9%80%9A%E4%BF%97%E7%90%86%E8%A7%A3SSL-TLS%E5%8D%8F%E8%AE%AE%E5%8C%BA%E5%88%AB%E4%B8%8E%E5%8E%9F%E7%90%86/</span><br></pre></td></tr></table></figure>
+
+<p>Android https漏洞挖掘：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">https://www.geek-share.com/detail/2727192403.html</span><br><span class="line">https://www.cxyzjd.com/article/u010982507/85258477</span><br><span class="line">https://www.jianshu.com/p/84df0a40127c</span><br></pre></td></tr></table></figure>
+
+<p>Android 证书绕过：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">https://juejin.cn/post/6992844908788711438</span><br><span class="line">https://www.jianshu.com/p/34912804bf08</span><br><span class="line">https://www.panaihua.com/android-catchhttp/</span><br></pre></td></tr></table></figure>
+
+
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/14/bug0015/" title="Android App漏洞之战（15）——Https（http）通信漏洞详解">http://security-kitchen.com/2023/02/14/bug0015/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/13/bug0014/" rel="prev" title="Android App漏洞之战（14）——信息泄露漏洞详解">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（14）——信息泄露漏洞详解
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0016/" rel="next" title="Android App漏洞之战（16）——通信漏洞的案例实操">
+      Android App漏洞之战（16）——通信漏洞的案例实操 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-text">二、基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%8A%A0%E5%AF%86%E7%AE%97%E6%B3%95"><span class="nav-text">1.加密算法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%AF%B9%E7%A7%B0%E5%8A%A0%E5%AF%86"><span class="nav-text">（1）对称加密</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E9%9D%9E%E5%AF%B9%E7%A7%B0%E5%8A%A0%E5%AF%86"><span class="nav-text">（2）非对称加密</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E4%BF%A1%E6%81%AF%E5%AE%89%E5%85%A8%E9%97%AE%E9%A2%98"><span class="nav-text">2.信息安全问题</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E4%BF%A1%E6%81%AF%E7%9A%84%E4%BF%9D%E5%AF%86%E6%80%A7"><span class="nav-text">（1）信息的保密性</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E4%BF%A1%E6%81%AF%E7%9A%84%E5%AE%8C%E6%95%B4%E6%80%A7%EF%BC%88%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D%EF%BC%89"><span class="nav-text">（2）信息的完整性（数字签名）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E8%BA%AB%E4%BB%BD%E8%AF%86%E5%88%AB%EF%BC%88%E6%95%B0%E5%AD%97%E8%AF%81%E4%B9%A6%EF%BC%89"><span class="nav-text">（3）身份识别（数字证书）</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Http-x2F-Https%E8%AF%A6%E8%A7%A3"><span class="nav-text">3.Http&#x2F;Https详解</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89TLS-x2F-SSL"><span class="nav-text">（1）TLS&#x2F;SSL</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89HTTPs%E7%9A%84%E5%8D%95%E5%90%91%E8%AE%A4%E8%AF%81%E5%92%8C%E5%8F%8C%E5%90%91%E8%AE%A4%E8%AF%81"><span class="nav-text">（2）HTTPs的单向认证和双向认证</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E5%8D%95%E5%90%91%E8%AE%A4%E8%AF%81"><span class="nav-text">&lt;1&gt;单向认证</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E5%8F%8C%E5%90%91%E8%AE%A4%E8%AF%81"><span class="nav-text">&lt;2&gt;双向认证</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-Android-Http%E7%BD%91%E7%BB%9C%E5%BC%80%E5%8F%91"><span class="nav-text">4.Android Http网络开发</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89HttpURLConnection"><span class="nav-text">（1）HttpURLConnection</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89okhttp3"><span class="nav-text">（2）okhttp3</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%90%84%E8%87%AA%E8%AF%81%E4%B9%A6%E7%9A%84%E6%A0%A1%E9%AA%8C%E6%96%B9%E5%BC%8F"><span class="nav-text">（3）各自证书的校验方式</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81HTTP-x2F-HTTPs%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">三、HTTP&#x2F;HTTPs漏洞分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%BC%8F%E6%B4%9E%E7%9A%84%E5%AE%89%E5%85%A8%E7%A7%8D%E7%B1%BB%E5%92%8C%E5%8D%B1%E5%AE%B3"><span class="nav-text">1.漏洞的安全种类和危害</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-HTTP%E6%98%8E%E6%96%87%E4%BC%A0%E8%BE%93%E6%BC%8F%E6%B4%9E"><span class="nav-text">2.HTTP明文传输漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E6%A1%88%E4%BE%8B"><span class="nav-text">（1）漏洞案例</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E9%85%B7%E6%88%91%E9%9F%B3%E4%B9%90APP%E5%AD%98%E5%9C%A8%E9%80%BB%E8%BE%91%E7%BC%BA%E9%99%B7%E6%BC%8F%E6%B4%9E"><span class="nav-text">&lt;1&gt;酷我音乐APP存在逻辑缺陷漏洞</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E4%B8%8A%E6%B5%B7%E4%BB%BB%E6%84%8F%E9%97%A8%E7%A7%91%E6%8A%80%E6%9C%89%E9%99%90%E5%85%AC%E5%8F%B8Soul-APP%E5%AD%98%E5%9C%A8%E4%BF%A1%E6%81%AF%E6%B3%84%E9%9C%B2%E6%BC%8F%E6%B4%9E"><span class="nav-text">&lt;2&gt; 上海任意门科技有限公司Soul APP存在信息泄露漏洞</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E9%85%B7%E7%8B%97%E7%9B%B4%E6%92%AD%E5%AD%98%E5%9C%A8%E9%80%BB%E8%BE%91%E7%BC%BA%E9%99%B7%E6%BC%8F%E6%B4%9E%EF%BC%88hash%E9%AA%8C%E8%AF%81%EF%BC%89"><span class="nav-text">&lt;3&gt;酷狗直播存在逻辑缺陷漏洞（hash验证）</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E9%98%B2%E6%8A%A4"><span class="nav-text">（2）漏洞防护</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-HTTPs%E5%AF%86%E6%96%87%E4%BC%A0%E8%BE%93%E6%BC%8F%E6%B4%9E"><span class="nav-text">3.HTTPs密文传输漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E6%A1%88%E4%BE%8B-1"><span class="nav-text">（1）漏洞案例</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E5%BF%BD%E7%95%A5SSL%E8%AF%81%E4%B9%A6%E6%A0%A1%E9%AA%8C%E6%BC%8F%E6%B4%9E"><span class="nav-text">&lt;1&gt; 忽略SSL证书校验漏洞</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E5%BF%BD%E7%95%A5%E5%9F%9F%E5%90%8D%E6%A0%A1%E9%AA%8C%E6%BC%8F%E6%B4%9E"><span class="nav-text">&lt;2&gt;忽略域名校验漏洞</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E4%BD%9C%E4%B8%9A%E5%B8%AE%E5%AD%98%E5%9C%A8https%E5%8D%87%E7%BA%A7%E5%8A%AB%E6%8C%81%E6%BC%8F%E6%B4%9E"><span class="nav-text">&lt;3&gt;作业帮存在https升级劫持漏洞</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E9%98%B2%E6%8A%A4-1"><span class="nav-text">（2）漏洞防护</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81Android-%E7%BB%95%E8%BF%87https%E7%9A%84SSL-Pining"><span class="nav-text">四、Android 绕过https的SSL Pining</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-SSL-pinning"><span class="nav-text">1.SSL pinning</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Android-7-0%E5%90%8E%E7%A0%B4%E8%A7%A3https-%E7%9A%84ssl-pinning"><span class="nav-text">2.Android 7.0后破解https 的ssl pinning</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E8%AF%81%E4%B9%A6%E7%BB%95%E8%BF%87%E5%8E%9F%E7%90%86"><span class="nav-text">3.证书绕过原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E5%B7%A5%E5%85%B7%E4%BD%BF%E7%94%A8"><span class="nav-text">4.工具使用</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89Xposed-JustTrustMe"><span class="nav-text">（1）Xposed+JustTrustMe</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89Frida%E8%84%9A%E6%9C%AC"><span class="nav-text">（2）Frida脚本</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">五、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">六、参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

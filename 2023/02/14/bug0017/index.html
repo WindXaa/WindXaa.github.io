@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言验证码漏洞也是当下十分常见的APP端漏洞，本文对验证码漏洞原理做了一个初步的讲解，并复现了当下一些常见的验证码相关的漏洞，本文App抓包技术参考了肉丝大佬的书籍安卓Frida逆向和抓包实战">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（17）——验证码漏洞挖掘详解">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/14/bug0017/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言验证码漏洞也是当下十分常见的APP端漏洞，本文对验证码漏洞原理做了一个初步的讲解，并复现了当下一些常见的验证码相关的漏洞，本文App抓包技术参考了肉丝大佬的书籍安卓Frida逆向和抓包实战">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/9.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/45.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/17.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/26.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/24.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/25.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/27.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/28.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/29.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/30.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/31.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/32.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/33.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/34.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/35.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/36.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/37.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/38.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/39.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/40.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/41.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/42.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/43.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/44.png">
+<meta property="article:published_time" content="2023-02-14T01:04:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.113Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/14/bug0017/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（17）——验证码漏洞挖掘详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/14/bug0017/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（17）——验证码漏洞挖掘详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-14 09:04:19" itemprop="dateCreated datePublished" datetime="2023-02-14T09:04:19+08:00">2023-02-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>验证码漏洞也是当下十分常见的APP端漏洞，本文对验证码漏洞原理做了一个初步的讲解，并复现了当下一些常见的验证码相关的漏洞，本文App抓包技术参考了肉丝大佬的书籍安卓Frida逆向和抓包实战</p>
+<span id="more"></span>
+<p>本文第二节主要讲述Android APP端抓包的基础知识</p>
+<p>本文第三节主要讲述APP验证码漏洞的种类和安全场景</p>
+<p>本文第四节主要讲述APP验证码原理，并复现了一些常见的验证码相关漏洞</p>
+<h2 id="二、基础知识"><a href="#二、基础知识" class="headerlink" title="二、基础知识"></a>二、基础知识</h2><p>APP验证码漏洞挖掘，需要掌握基本的Android抓包技术，现在越来越多的APP开始进行安全防护，所以如何才能绕过一些基本的防护技术，合理的抓取到报文是验证码漏洞挖掘的先决条件。学习下面知识之前，可以先学习<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-270634.htm">Android APP漏洞之战（6）——HTTP&#x2F;HTTPs通信漏洞详解</a>的基础理论知识。</p>
+<h3 id="1-APP抓包技术详解"><a href="#1-APP抓包技术详解" class="headerlink" title="1.APP抓包技术详解"></a>1.APP抓包技术详解</h3><h4 id="（1）高版本android系统证书导入"><a href="#（1）高版本android系统证书导入" class="headerlink" title="（1）高版本android系统证书导入"></a>（1）高版本android系统证书导入</h4><p><strong>Android4.4后</strong></p>
+<p>开始引入CA证书校验机制，这里先会涉及到Https的单向认证机制</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/1.png"></p>
+<p>上述步骤4就进行证书校验的环节，而这里的证书便是将手机内置的证书和客户端的证书进行校验，来判断是否合法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Https原理：非对称+对称连接</span><br><span class="line">	（1）非对称主要是为了传输对称连接所需要密钥和证书校验</span><br><span class="line">	（2）对称连接是加密密码可以安全传输，就可以采用对称连接</span><br></pre></td></tr></table></figure>
+
+<p><strong>Android4.4-Android7.0</strong></p>
+<p>这个阶段，Android系统信任用户下的证书，所以逆向人员可以将抓包工具的证书导入用户目录下，实现对Https的报文抓取，这里案例可以参考<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-268445.htm">Android协议分析（一）——Fiddler安装和使用 </a></p>
+<p><strong>Android7.0+</strong></p>
+<p>Android7.0后，Android系统不再信任用户目录下证书，只信任根目录下证书，所以我们要获取HTTPs报文，需要将抓包工具的证书移动到根目录下</p>
+<p>方法一：将文件系统先挂载起来，然后移动</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">root权限下：</span><br><span class="line">mount -o remount,rw /system</span><br><span class="line">cp * /etc/security/cacerts/</span><br><span class="line">chmod <span class="number">777</span> /etc/security/cacerts<span class="comment">/*</span></span><br><span class="line"><span class="comment">mount -o remount,ro /system</span></span><br><span class="line"><span class="comment">reboot</span></span><br></pre></td></tr></table></figure>
+
+<p>方法二：使用Magisk证书模块</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/Magisk-Modules-Repo/movecert">Move Certificates</a></p>
+<p>我们只需要将模块安装到Magisk中，这样就可以成功的抓取常规状态下的HTTPs的报文了，这里一定主要抓包时必须保证Android手机时间要正确，否则也会报错</p>
+<h4 id="（2）HTTPs双向认证及解决方案"><a href="#（2）HTTPs双向认证及解决方案" class="headerlink" title="（2）HTTPs双向认证及解决方案"></a>（2）HTTPs双向认证及解决方案</h4><p>Https一般采用单向认证，但是一些特殊的APP在服务端也会对证书进行再次认证，这样的认证机制我们称为HTTPs双向认证</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/2.png"></p>
+<p>上图中步骤5就对客户端证书进行了校验，这里导致我们就算客户端导入了抓包工具的证书并信任，也无法通过服务端的认证</p>
+<p><strong>解决办法：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">（1）获取客户端的证书，可以通过编写hook脚本的方式，获取客户端证书及密码</span><br><span class="line">（2）将客户端证书导入到抓包软件charles中，使得Charles能都获取服务端信任（这里一般可以使用charles、Burpsuit软件）</span><br></pre></td></tr></table></figure>
+
+<p>方法一：</p>
+<p>这里我们一般可以先去分析开发中进行保护的函数，再对对应的函数进行hook</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">例如java.security.KeyStore</span><br></pre></td></tr></table></figure>
+
+<p>这里可以参考肉丝大佬的文章<a target="_blank" rel="noopener" href="https://www.anquanke.com/post/id/197657#h3-11">实用FRIDA进阶：内存漫游、hook anywhere、抓包</a></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/3.png"></p>
+<p>这里考虑篇幅问题，给一个参考的实操案例<a target="_blank" rel="noopener" href="https://ch3nye.top/%E3%80%90%E5%AE%9E%E6%88%98%E3%80%91%E6%9F%90%E4%BA%A4%E5%8F%8Bapp%E7%9A%84%E5%8F%8C%E5%90%91%E8%AE%A4%E8%AF%81crack/">某交友app的双向认证crack</a></p>
+<p>方法二：</p>
+<p>直接在Apk文件下搜索.p12后缀的文件，这里搜索出来的很有可能就是证书文件，当然有些需要密码的就还是要进行hook了</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">tree -NCfhl |grep -i p12</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/4.png" alt="image-20220409205835643"></p>
+<h4 id="（3）VPN代理机制"><a href="#（3）VPN代理机制" class="headerlink" title="（3）VPN代理机制"></a>（3）VPN代理机制</h4><p>如果APP中编写了检测代理抓包软件代码，也可能会导致我们抓不到包</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">System.getProperty(“http.proxyHost”); </span><br><span class="line">System.getProperty(“http.proxyPort”); </span><br></pre></td></tr></table></figure>
+
+<p>这样我们使用代理软件进行抓包要更加合适，当然也有一些检测VPN的情况，这种直接hook就可以了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/5.png" alt="image-20220410094013590"></p>
+<p>具体如何配置使用，可以参考这篇文章<a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/ahPbBSfkkBsv4oy265rI2Q">APP流量 “一个都不能少” ！</a></p>
+<p>采用VPN代理进行抓包，和Http中间人抓包有本质区别，VPN抓包本质在网络层和路由层抓包</p>
+<h4 id="（4）SSL-pinning"><a href="#（4）SSL-pinning" class="headerlink" title="（4）SSL pinning"></a>（4）SSL pinning</h4><p>就算我们使用Vpn代理抓包，也解决了证书双向认证的问题，但是在抓包过程中也可能会遇到证书绑定的情况</p>
+<p>证书绑定：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">APP在代码段中有有对服务端证书进行对比一致性，如果发现是中间人就会直接终止连接</span><br></pre></td></tr></table></figure>
+
+<p>这里我们提供一般的解决思路：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（1）识别证书绑定</span><br><span class="line">（2）先使用开源框架objection或DroidSSLUnpinning先去简单hook</span><br><span class="line">（3）不成功，再去分析APP使用哪种开发框架，去有针对性的进行hook</span><br><span class="line">（4）如果不知道开发框架，可以采用Hook Java的File构造函数进一步去定位证书绑定代码</span><br></pre></td></tr></table></figure>
+
+<p>这里用一个简单的实例来说明：</p>
+<p><strong>识别证书绑定：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/6.png" alt="image-20220410095914907"></p>
+<p>当我们解决了单向认证、双向认证、采用代理通信还出现上面的情况，说明APP可能采用了证书绑定</p>
+<p><strong>使用开源框架hook——以objection为例：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/7.png" alt="image-20220410095914907"></p>
+<p>我们直接使用objection的hook或spwan模式就进行证书绑定hook</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">hook模式启动：android sslpinning disable</span><br><span class="line">spwan模式启动：objection -g 包名 explore -s &quot;android sslpinning disable&quot;</span><br></pre></td></tr></table></figure>
+
+<p><strong>针对开发框架，有针对性hook:</strong></p>
+<p>我们需要分析APP采用何种开源框架，如okhttp等，不过这里一般开源hook工具objection已经针对了当下的很多开源框架了，所以如果没有成功，可能是程序进行了混淆，这个时候就需要进一步去hook正确的绑定函数</p>
+<p><strong>未知开源框架：</strong></p>
+<p>我们对File构造函数进行hook，然后可以观察对应的调用链信息，从而分析出证书绑定的函数</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/8.png" alt="image-20220410095914907"></p>
+<p>再针对这里找到的函数进行正确的hook，即可</p>
+<h4 id="（5）VPN-Charles-Burpsuit环境配置"><a href="#（5）VPN-Charles-Burpsuit环境配置" class="headerlink" title="（5）VPN+Charles+Burpsuit环境配置"></a>（5）VPN+Charles+Burpsuit环境配置</h4><p>我们经过上面一系列流程基本可以解决当下常见的安全防护形式，当然针对更加安全的抓包防护策略就需要深入的解决了，这里我们介绍一下本文的抓包环境搭建，一般使用通过VPN+Charles+Burpsuit的组合抓包方式</p>
+<p>首先先配置VPN+Charles的抓包模式</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/9.png" alt="image-20220410101546946"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/10.png" alt="image-20220410101609229"></p>
+<p>然后我们将Charles的流量去导入到Burpsuit中，这样就可以实现组合使用，当然根据实际情况你也可以选择合适抓包工具</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/11.png" alt="image-20220410102252123"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/12.png" alt="image-20220410102431749"></p>
+<h2 id="三、验证码漏洞安全场景和分类"><a href="#三、验证码漏洞安全场景和分类" class="headerlink" title="三、验证码漏洞安全场景和分类"></a>三、验证码漏洞安全场景和分类</h2><h3 id="1-验证码漏洞安全场景"><a href="#1-验证码漏洞安全场景" class="headerlink" title="1.验证码漏洞安全场景"></a>1.验证码漏洞安全场景</h3><p>验证码漏洞一般是APP对验证码没有进行登陆校验等安全防护导致的，攻击者一般可以利用验证码漏洞进行暴力破解实现任意号码登陆、还可以实现短信轰炸、导致验证码泄露、手机号换绑、验证码无限发送风险、万能验证码登录、修改返回包绕过验证码登录等安全问题，验证码漏洞在APP中的影响十分严重，一般会造成严重的经济损失。</p>
+<h3 id="2-验证码漏洞分类"><a href="#2-验证码漏洞分类" class="headerlink" title="2.验证码漏洞分类"></a>2.验证码漏洞分类</h3><p>我们根据上面的描述，可以将验证码漏洞分为如下几类：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/45.png" alt="image-20220411111532796"></p>
+<h2 id="四、验证码漏洞原理分析和复现"><a href="#四、验证码漏洞原理分析和复现" class="headerlink" title="四、验证码漏洞原理分析和复现"></a>四、验证码漏洞原理分析和复现</h2><h3 id="1-验证码暴力破解漏洞"><a href="#1-验证码暴力破解漏洞" class="headerlink" title="1.验证码暴力破解漏洞"></a>1.验证码暴力破解漏洞</h3><h4 id="（1）原理分析"><a href="#（1）原理分析" class="headerlink" title="（1）原理分析"></a>（1）原理分析</h4><p>验证码暴力破解漏洞一般是因为用户使用手机号+验证码的方式进行登陆时，短信验证码一般由4-6位数字组成，而且APP并未对验证码做时间和失败次数校验，所以攻击者可以通过这个区间的所有数字进行暴力破解来进行攻击</p>
+<h4 id="（2）漏洞复现"><a href="#（2）漏洞复现" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>案例：XX APP为例</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/14.png" alt="image-20220410105515919"></p>
+<p>我们打开APP，发现该APP并未对登录号码进行验证，而且返回的验证码是4位验证码，这里我们就十分怀疑是否能进行验证码暴力破解</p>
+<p>然后我们使用上面搭建好的抓包环境，随便输入一个验证码去抓取错误信息</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/15.png" alt="image-20220410105515919"></p>
+<p>我们发现APP根本没有进行证书绑定等安全防护，甚至没对验证码进行加密，我们于是对响应的报文进行攻击</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/16.png" alt="image-20220410105515919"></p>
+<p>然后我们采用100个线程，就暴力破解</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/17.png" alt="image-20220410105515919"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/18.png" alt="image-20220410105515919"></p>
+<p>开始攻击</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/19.png" alt="image-20220410105515919"></p>
+<p>然后我们就成功暴力破解出验证码，这里我们发现还可以输入任意的号码<code>18888888888</code>同样可以成功登录，而且可以获取其他用户的订单信息</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/20.png" alt="image-20220410110251127"></p>
+<p>最后类似漏洞危害，如下</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/21.png" alt="image-20220410110705360"></p>
+<h4 id="（3）安全防护"><a href="#（3）安全防护" class="headerlink" title="（3）安全防护"></a>（3）安全防护</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（1）设置验证码时间验证，一般建议为180s</span><br><span class="line">（2）限制单位时间内验证码失败的尝试错误，如5分钟连续失败即锁定账号</span><br><span class="line">（3）对验证码进行加密传输</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-验证码无限次数发送（短信轰炸）"><a href="#2-验证码无限次数发送（短信轰炸）" class="headerlink" title="2.验证码无限次数发送（短信轰炸）"></a>2.验证码无限次数发送（短信轰炸）</h3><h4 id="（1）原理分析-1"><a href="#（1）原理分析-1" class="headerlink" title="（1）原理分析"></a>（1）原理分析</h4><p>验证码无限次数发送、短信轰炸漏洞一般是APP端并没有对手机号码进行次数显示，也未对访问进行时间限制</p>
+<h4 id="（2）漏洞复现-1"><a href="#（2）漏洞复现-1" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>我们首先对上面的APP进行发送验证码，查看响应的报文</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/22.png" alt="image-20220410111915010"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/26.png" alt="image-20220411101714278"></p>
+<p>然后通过暴力破解进行短信轰炸，这里轰炸自己手机号，就轰炸个50次吧</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/24.png" alt="image-20220410112221486"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/25.png" alt="image-20220410112415310"></p>
+<p>我们发现可以验证码无限次数发送，但是无法进行短信轰炸，因为验证码做了60s校验，于是尝试去分析APP代码</p>
+<p>我们将APP拖入GDA分析</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/27.png" alt="image-20220411102019374"></p>
+<p>这里我们发现APP进行360加固保护，我们就使用一代壳脱壳工具Frida_Dump进行脱壳</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/28.png" alt="image-20220411102212716"></p>
+<p>我们定位到相关的代码段:</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/29.png" alt="image-20220411102327963"></p>
+<p>分析了代码逻辑，本来以为可以简单的hook相关的函数，使得验证码60s时间变少，但是发现成功发送后还是显示需要60s后再次发送，这说明这个验证就是根据发送的报文，在服务端进行校验</p>
+<p>我们查看发送的报文：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/30.png" alt="image-20220411104546386"></p>
+<p>我们发现获取验证码就是对应的手机号和time值，很显然我们推测time值是用来校验时间和对应手机号的</p>
+<p>我们分析对应源码：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/31.png" alt="image-20220411104714014"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/32.png" alt="image-20220411104815174"></p>
+<p>我们可以清晰发现为什么APP验证码对当前系统时间进行校验，因为有系统时间获取函数</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/33.png" alt="image-20220411104901496"></p>
+<p>同理，我们可以发现验证码校验的一些段落，包括四位验证码等</p>
+<p>最后经过分析，得出就是服务端会对每次发送的手机号和系统时间和手机号编码产生的密钥进行校验，会对60s时间进行校验，以及会对当前手机系统时间进行校验</p>
+<p>这里我们可以简单进行60s间隔的短信轰炸，可以简单实现效果如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/34.png" alt="image-20220411105257847"></p>
+<p>因为现在短信轰炸漏洞越来越少，这里没找到更加合适的案例，这里收集一个大佬写的短信漏洞轰炸的文章，可以参考下：<a target="_blank" rel="noopener" href="https://www.anquanke.com/post/id/93878">挖洞技巧：绕过短信&amp;邮箱轰炸限制以及后续</a></p>
+<h4 id="（3）安全防护-1"><a href="#（3）安全防护-1" class="headerlink" title="（3）安全防护"></a>（3）安全防护</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(1)增加验证码发送校验时间间隔</span><br><span class="line">(2)采用代理池对ip进行限制</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-验证码泄露风险与万能验证码漏洞"><a href="#3-验证码泄露风险与万能验证码漏洞" class="headerlink" title="3.验证码泄露风险与万能验证码漏洞"></a>3.验证码泄露风险与万能验证码漏洞</h3><h4 id="（1）原理分析-2"><a href="#（1）原理分析-2" class="headerlink" title="（1）原理分析"></a>（1）原理分析</h4><p>验证码执行【找回密码】操作时，输入手机号，获取验证码，服务器会向手机发送验证码，通过burpsuite抓包工具，查看返回的响应数据包中如果包含验证码，则可能导致用户密码恶意重置、绑定手机号被恶意更换等风险</p>
+<p>万能验证码一般是开发在业务未上线的时候为了方便测试用的,上线后忘记删除了,例如[8888 0000 1234](tel:8888 0000 1234)等等</p>
+<h4 id="（2）安全防护"><a href="#（2）安全防护" class="headerlink" title="（2）安全防护"></a>（2）安全防护</h4><p>因为当下这种漏洞较少，这里没有找到合适案例，就只简单介绍下原理了</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（1）禁止验证码在本地客户端生成，应采用服务器端验证码生成机制；</span><br><span class="line">（2）设置验证码的时效性，如180秒过期；</span><br><span class="line">（3）验证码应随机生成，且使用一次即失效。</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-修改返回包绕过登录漏洞"><a href="#4-修改返回包绕过登录漏洞" class="headerlink" title="4.修改返回包绕过登录漏洞"></a>4.修改返回包绕过登录漏洞</h3><h4 id="（1）原理分析-3"><a href="#（1）原理分析-3" class="headerlink" title="（1）原理分析"></a>（1）原理分析</h4><p>在APP验证码测试过程中，我们发现很对APP并未对登录成功的响应报文进行校验，导致我们获取登录成功的响应报文后，就可以通过正确的响应报文实现任意号码的登录，导致信息泄露</p>
+<h4 id="（2）漏洞复现-2"><a href="#（2）漏洞复现-2" class="headerlink" title="（2）漏洞复现"></a>（2）漏洞复现</h4><p>案例：XXAPP</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/35.png" alt="image-20220411110615223"></p>
+<p>我们先使用手机号进行正确的登录，同时我们使用burpsuit抓取正确登录的响应信息</p>
+<p><strong>发送的请求：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/36.png" alt="image-20220411110709567"></p>
+<p><strong>响应的报文：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/37.png" alt="image-20220411110756668"></p>
+<p>此时我们可以获取正确响应的报文，我们只需要对在下次登录时对该响应请求进行替换即可</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/38.png" alt="image-20220411110840086"></p>
+<p>此时我们再次登录，这里我们随便输入验证码5555</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/39.png" alt="image-20220411110840086"></p>
+<p>然后我们注意设置对响应进行抓取</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/40.png" alt="image-20220411111006306"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/41.png" alt="image-20220411111006306"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/42.png" alt="image-20220411111055714"></p>
+<p>然后进行替换</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/43.png" alt="image-20220411111136053"></p>
+<p>最后我们替换报文发现成功登录：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0017/44.png" alt="image-20220411111203716"></p>
+<h4 id="（3）安全防护-2"><a href="#（3）安全防护-2" class="headerlink" title="（3）安全防护"></a>（3）安全防护</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">不要在前端利用服务端返回的值判断是否可以修改密码 要把整个效验环节交给服务端</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、实验总结"><a href="#五、实验总结" class="headerlink" title="五、实验总结"></a>五、实验总结</h2><p>本文详细的介绍了APP中的抓包技术，以及讲述了当下APP端验证码漏洞挖掘实现的一些常见的方式，验证码漏洞还有更多的漏洞，后续会进一步完善，本文拿了一些实例具体复现了漏洞的挖掘步骤，并提交CNVD获得了一些中高危漏洞，一些更详细资料放在github和星球中</p>
+<p>github首页：<a target="_blank" rel="noopener" href="https://github.com/guoxuaa">github</a></p>
+<h2 id="六、参考文献"><a href="#六、参考文献" class="headerlink" title="六、参考文献"></a>六、参考文献</h2><p>参考书籍：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">安卓Frida逆向与抓包实战</span><br></pre></td></tr></table></figure>
+
+<p>验证码漏洞：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">https://www.52pojie.cn/thread-1613856-1-1.html</span><br><span class="line">https://www.jianshu.com/p/d2b4c6a54d68</span><br><span class="line">https://www.bilibili.com/read/cv4218190</span><br></pre></td></tr></table></figure>
+
+<p>短信轰炸漏洞：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">https://www.anquanke.com/post/id/93878</span><br><span class="line">https://bbs.ichunqiu.com/forum.php?mod=viewthread&amp;tid=27614</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/14/bug0017/" title="Android App漏洞之战（17）——验证码漏洞挖掘详解">http://security-kitchen.com/2023/02/14/bug0017/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0016/" rel="prev" title="Android App漏洞之战（16）——通信漏洞的案例实操">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（16）——通信漏洞的案例实操
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0018/" rel="next" title="Android App漏洞之战（18）——Sql漏洞初探">
+      Android App漏洞之战（18）——Sql漏洞初探 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-text">二、基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-APP%E6%8A%93%E5%8C%85%E6%8A%80%E6%9C%AF%E8%AF%A6%E8%A7%A3"><span class="nav-text">1.APP抓包技术详解</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E9%AB%98%E7%89%88%E6%9C%ACandroid%E7%B3%BB%E7%BB%9F%E8%AF%81%E4%B9%A6%E5%AF%BC%E5%85%A5"><span class="nav-text">（1）高版本android系统证书导入</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89HTTPs%E5%8F%8C%E5%90%91%E8%AE%A4%E8%AF%81%E5%8F%8A%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-text">（2）HTTPs双向认证及解决方案</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89VPN%E4%BB%A3%E7%90%86%E6%9C%BA%E5%88%B6"><span class="nav-text">（3）VPN代理机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89SSL-pinning"><span class="nav-text">（4）SSL pinning</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%885%EF%BC%89VPN-Charles-Burpsuit%E7%8E%AF%E5%A2%83%E9%85%8D%E7%BD%AE"><span class="nav-text">（5）VPN+Charles+Burpsuit环境配置</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E9%AA%8C%E8%AF%81%E7%A0%81%E6%BC%8F%E6%B4%9E%E5%AE%89%E5%85%A8%E5%9C%BA%E6%99%AF%E5%92%8C%E5%88%86%E7%B1%BB"><span class="nav-text">三、验证码漏洞安全场景和分类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%AA%8C%E8%AF%81%E7%A0%81%E6%BC%8F%E6%B4%9E%E5%AE%89%E5%85%A8%E5%9C%BA%E6%99%AF"><span class="nav-text">1.验证码漏洞安全场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E9%AA%8C%E8%AF%81%E7%A0%81%E6%BC%8F%E6%B4%9E%E5%88%86%E7%B1%BB"><span class="nav-text">2.验证码漏洞分类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E9%AA%8C%E8%AF%81%E7%A0%81%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">四、验证码漏洞原理分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%AA%8C%E8%AF%81%E7%A0%81%E6%9A%B4%E5%8A%9B%E7%A0%B4%E8%A7%A3%E6%BC%8F%E6%B4%9E"><span class="nav-text">1.验证码暴力破解漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90"><span class="nav-text">（1）原理分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0"><span class="nav-text">（2）漏洞复现</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">（3）安全防护</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E9%AA%8C%E8%AF%81%E7%A0%81%E6%97%A0%E9%99%90%E6%AC%A1%E6%95%B0%E5%8F%91%E9%80%81%EF%BC%88%E7%9F%AD%E4%BF%A1%E8%BD%B0%E7%82%B8%EF%BC%89"><span class="nav-text">2.验证码无限次数发送（短信轰炸）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90-1"><span class="nav-text">（1）原理分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-1"><span class="nav-text">（2）漏洞复现</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4-1"><span class="nav-text">（3）安全防护</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E9%AA%8C%E8%AF%81%E7%A0%81%E6%B3%84%E9%9C%B2%E9%A3%8E%E9%99%A9%E4%B8%8E%E4%B8%87%E8%83%BD%E9%AA%8C%E8%AF%81%E7%A0%81%E6%BC%8F%E6%B4%9E"><span class="nav-text">3.验证码泄露风险与万能验证码漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90-2"><span class="nav-text">（1）原理分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">（2）安全防护</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E4%BF%AE%E6%94%B9%E8%BF%94%E5%9B%9E%E5%8C%85%E7%BB%95%E8%BF%87%E7%99%BB%E5%BD%95%E6%BC%8F%E6%B4%9E"><span class="nav-text">4.修改返回包绕过登录漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90-3"><span class="nav-text">（1）原理分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-2"><span class="nav-text">（2）漏洞复现</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4-2"><span class="nav-text">（3）安全防护</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">五、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">六、参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="[TOC] 一、前言最近一段时间在研究Android加壳和脱壳技术，其中涉及到了一些hook技术，于是将自己学习的一些hook技术进行了一下梳理，以便后面回顾和大家学习。 本文第二节主要讲述编译原理，了解编译原理可以帮助进一步理解hook技术 本文第三节主要讲述NDK开发的一些基础知识 本文第四节主要讲述各类hook技术的实现原理 本文第五节主要讲述各hook技术的实现步骤和案例演示">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（6）——（Hook篇）常见的Hook技术详解">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/09/bug0006/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="[TOC] 一、前言最近一段时间在研究Android加壳和脱壳技术，其中涉及到了一些hook技术，于是将自己学习的一些hook技术进行了一下梳理，以便后面回顾和大家学习。 本文第二节主要讲述编译原理，了解编译原理可以帮助进一步理解hook技术 本文第三节主要讲述NDK开发的一些基础知识 本文第四节主要讲述各类hook技术的实现原理 本文第五节主要讲述各hook技术的实现步骤和案例演示">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/9.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/17.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/23.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/24.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/25.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/26.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/27.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/28.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/29.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/30.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/31.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/32.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/33.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/34.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/35.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/36.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/37.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/38.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/39.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/40.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/41.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/42.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/43.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/44.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/45.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/46.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/47.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/48.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/49.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/50.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/51.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/52.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/53.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/54.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/55.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/56.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/57.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/58.png">
+<meta property="article:published_time" content="2023-02-09T01:49:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.109Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/09/bug0006/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（6）——（Hook篇）常见的Hook技术详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/09/bug0006/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（6）——（Hook篇）常见的Hook技术详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-09 09:49:19" itemprop="dateCreated datePublished" datetime="2023-02-09T09:49:19+08:00">2023-02-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>[TOC]</p>
+<h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>最近一段时间在研究Android加壳和脱壳技术，其中涉及到了一些hook技术，于是将自己学习的一些hook技术进行了一下梳理，以便后面回顾和大家学习。</p>
+<p>本文第二节主要讲述编译原理，了解编译原理可以帮助进一步理解hook技术</p>
+<p>本文第三节主要讲述NDK开发的一些基础知识</p>
+<p>本文第四节主要讲述各类hook技术的实现原理</p>
+<p>本文第五节主要讲述各hook技术的实现步骤和案例演示</p>
+<span id="more"></span>
+<h2 id="二、编译原理"><a href="#二、编译原理" class="headerlink" title="二、编译原理"></a>二、编译原理</h2><h3 id="1-编译过程"><a href="#1-编译过程" class="headerlink" title="1.编译过程"></a>1.编译过程</h3><p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/1.png" alt="image-20210918161352124"></p>
+<p>我们可以借助gcc来实现上面的过程：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">预处理阶段：预处理器（cpp）根据以字符#开头的命令修给原始的C程序，结果得到另一个C程序，通常以.i作为文件扩展名。主要是进行文本替换、宏展开、删除注释这类简单工作。 </span><br><span class="line">	命令行：gcc -E hello.c hello.i</span><br><span class="line">编译阶段：将文本文件hello.i翻译成hello.s，包含相应的汇编语言程序</span><br><span class="line">汇编阶段：将.S文件翻译成机器指令，然后把这些指令打包成一种可重定位目标程序的格式，并把结果保存在目标文件.o中（汇编——&gt;机器）</span><br><span class="line">	命令行：gcc -c hello.c hello.o</span><br><span class="line">链接阶段：hello程序调用了printf函数，链接器（Id）就把printf.o文件并入hello.o文件中，得到hello可执行文件，然后加载到存储器中由系统执行。</span><br><span class="line">	函数库包括静态库和动态库</span><br><span class="line">	静态库：编译链接时，把库文件代码全部加入可执行文件中，运行时不需要库文件，后缀为.a。</span><br><span class="line">	动态库：编译链接时，不加入，在程序执行时，由运行时链接文件加载库，这样节省开销，后缀为.so。（gcc编译时默认使用动态库）</span><br><span class="line">再经过汇编器和连接器的作用后输出一个目标文件，这个目标文件为可执行文件</span><br></pre></td></tr></table></figure>
+
+<p>这里我们对编译过程做了一个初步的讲解，详细大家可以去看《程序员的自我修养——链接、装载与库》一书，下面我们主要介绍链接方式、链接库、可执行目标文件几个基本概念。</p>
+<h4 id="（1）链接方式"><a href="#（1）链接方式" class="headerlink" title="（1）链接方式"></a>（1）链接方式</h4><p><strong>静态链接：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">对于静态库，程序在编译链接时，将库的代码链接到可执行文件中，程序运行时不再需要静态库。在使用过程中只需要将库和我们的程序编译后的文件链接在一起就可形成一个可执行文件。</span><br></pre></td></tr></table></figure>
+
+<p><strong>缺点：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1</span>、内存和磁盘空间浪费：静态链接方式对于计算机内存和磁盘的空间浪费十分严重。假如一个c语言的静态库大小为1MB，系统中有<span class="number">100</span>个需要使用到该库文件，采用静态链接的话，就要浪费进100M的内存，若数量再大，那浪费的也就更多。</span><br><span class="line"><span class="number">2.</span>更新麻烦：比如一个程序<span class="number">20</span>个模块，每个模块只有1MB，那么每次更新任何一个模块，用户都得重新下载20M的程序</span><br></pre></td></tr></table></figure>
+
+<p><strong>动态链接：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">由于静态链接具有浪费内存和模块更新困难等问题，提出了动态链接。基本实现思想是把程序按照模块拆分成各个相对独立部分，在程序运行时才将他们链接在一起形成一个完整的程序，而不是像静态链接那样把所有的程序模块都链接成一个单独的可执行文件。所以动态链接是将链接过程推迟到了运行时才进行。</span><br></pre></td></tr></table></figure>
+
+<p>例子：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">同样，假如有程序1，程序2，和Lib.o三个文件，程序1和程序2在执行时都需要用到Lib.o文件，当运行程序1时，系统首先加载程序1，当发现需要Lib.o文件时，也同样加载到内存，再去加载程序2当发现也同样需要用到Lib.o文件时，则不需要重新加载Lib.o，只需要将程序2和Lib.o文件链接起来即可，内存中始终只存在一份Lib.o文件。</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/2.png" alt="image-20210918161352124"></p>
+<p>优点：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）毋庸置疑的就是节省内存；</span><br><span class="line">（<span class="number">2</span>）减少物理页面的换入换出；</span><br><span class="line">（<span class="number">3</span>）在升级某个模块时，理论上只需要将对应旧的目标文件覆盖掉即可。新版本的目标文件会被自动装载到内存中并且链接起来；</span><br><span class="line">（<span class="number">4</span>）程序在运行时可以动态的选择加载各种程序模块，实现程序的扩展。</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）链接库"><a href="#（2）链接库" class="headerlink" title="（2）链接库"></a>（2）链接库</h4><p>我们在链接的过程中，一般会链接一些库文件，主要分为静态链接库和动态链接库。静态链接库一般为<code>Windows下的.lib和Linux下的.a</code>,动态链接库一般为<code>Windows下的.dll和Linux下的.so</code>，这里考虑到我们主要是对so文件hook讲解，下面我们主要介绍linux系统下的情况。</p>
+<p><strong>静态库：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">命名规范为libXXX.a</span><br><span class="line">库函数会被连接进可执行程序，可执行文件体积较大</span><br><span class="line">可执行文件运行时，不需要从磁盘载入库函数，执行效率较高</span><br><span class="line">库函数更新后，需要重新编译可执行程序</span><br></pre></td></tr></table></figure>
+
+<p><strong>动态库：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">命名规范为libXXX.so</span><br><span class="line">库函数不被连接进可执行程序，可执行文件体积较小</span><br><span class="line">可执行文件运行时，库函数动态载入</span><br><span class="line">使用灵活，库函数更新后，不需要重新编译可执行程序</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-可执行文件（ELF）"><a href="#2-可执行文件（ELF）" class="headerlink" title="2.可执行文件（ELF）"></a>2.可执行文件（ELF）</h3><p>目前PC平台比较流行的可执行文件格式主要是Windows下的PE和Linux下的ELF，它们都是COFF格式的变种。在Windows平台下就是我们比较熟悉的.exe文件，而Linux平台下现在便是统称的ELF文件。这里我们主要介绍一下Linux下的ELF文件。</p>
+<p><strong>ELF文件的类型：</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">可重定位目标文件：包含二进制代码和数据，其形式可以和其他目标文件进行合并，创建一个可执行目标文件。比如linux下的.o文件</span><br><span class="line">可执行目标文件：包含二进制代码和数据，可直接被加载器加载执行。 比如/bin/sh文件</span><br><span class="line">共享目标文件：可被动态的加载和链接。比如.so文件</span><br></pre></td></tr></table></figure>
+
+<p><strong>ELF文件的结构：</strong></p>
+<p>elf文件在不同的平台上有不同的格式，在Unix和x86-64 Linux上称ELF：</p>
+<h4 id="（1）ELF文件结构"><a href="#（1）ELF文件结构" class="headerlink" title="（1）ELF文件结构"></a>（1）ELF文件结构</h4><p>目标文件既要参与程序链接，又要参与程序执行：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/3.png" alt="image-20220517112124280"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">(<span class="number">1</span>)文件开始处：是一个ELF头部（ELF Header），用来描述整个文件的组织。节区部分包含链接视图的大量信息：指令、数据、符号表、重定位信息等。</span><br><span class="line">(<span class="number">2</span>)程序头部表(Program Header Table)：如果存在的话，会告诉系统如何创建进程映像。用来构造进程映像的目标文件必须具有程序头部表，可重定位文件不需要这个表。</span><br><span class="line">(<span class="number">3</span>)节区头部表(Section Header Table)：包含了描述文件节区的信息，每个节区在表中都有一项，每一项给出诸如节区名称、节区大小这类信息。用于链接的目标文件必须包含节区头部表，其他目标文件可以有，也可以没有这个表。</span><br></pre></td></tr></table></figure>
+
+<p>下面我们来从分别从连接视角和程序执行的视角来看ELF文件：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/4.png" alt="image-20210918161352124"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ELF Header:描述了描述了体系结构和操作系统等基本信息并指出Section Header Table和Program Header Table在文件中的什么位置</span><br><span class="line">Program Header Table: 保存了所有Segment的描述信息；在汇编和链接过程中没有用到，所以是可有可无的</span><br><span class="line">Section Header Table:保存了所有Section的描述信息；Section Header Table在加载过程中没有用到，所以是可有可无的</span><br></pre></td></tr></table></figure>
+
+<p>下面我们来看一张更加详细的ELF结构图</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/5.png" alt="image-20210918161352124"></p>
+<p>从中我们可以详细的知道ELF文件各个字段的含义，其他字段的含义如下图</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/6.png" alt="image-20210918161352124"></p>
+<h4 id="（2）GOT和PLT"><a href="#（2）GOT和PLT" class="headerlink" title="（2）GOT和PLT"></a>（2）GOT和PLT</h4><p>上面我们简单的分析了ELF的文件结构，而这里我们介绍一下其中两个重要的节表<code>GOT(全局偏移表)</code>和<code>PLT(程序链接表)</code></p>
+<p>首先，我们需要理解为什么需要GOT表和PLT表</p>
+<p>经过上面的分析，我们知道程序在经历了编译流程后，就来到了链接过程，链接过程就是将一个或者多个中间文件（.o文件）通过链接器将它们链接成一个可执行文件，主要要完成以下事情：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">1.各个中间文之间的同名section合并</span><br><span class="line">2.对代码段，数据段以及各符号进行地址分配</span><br><span class="line">3.链接时重定位修正</span><br></pre></td></tr></table></figure>
+
+<p>但是当我们程序运行起来，<code>glibc</code>动态库也装载了，函数地址也确定了，那我们程序如何去调用动态库中的函数呢，这个时候就需要理解一下重定位的概念：</p>
+<p><strong>重定位：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1.链接重定位：将一个或多个中间文件(.o文件)通过链接器将它们链接成一个可执行文件，一般分为两种情况：</span><br><span class="line">	（1）如果是在其他中间文件中已经定义了的函数，链接阶段可以直接重定位到函数地址，比如我们从头文件访问另一个函数</span><br><span class="line">	（2）如果是在动态库中定义了的函数，链接阶段无法直接重定位到函数地址，只能生成额外的小片段代码，也就是PLT表，然后重定位到该代码片段</span><br><span class="line">2.运行重定位：运行后加载动态库，把动态库中的相应函数地址填入GOT表，由于PLT表是跳转到GOT表的，这就构成了运行时重定位</span><br><span class="line">3.延迟重定位：只有动态库函数在被调用时，才会进行地址解析和重定位工作，这时候动态库函数的地址才会被写入到GOT表项中</span><br></pre></td></tr></table></figure>
+
+<p>这里我们就可以明白流程，程序在加载动态库中函数时，需要两部分：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">需要存放外部函数的代码段表（PLT表）</span><br><span class="line">存放函数地址的数据表（GOT表）</span><br></pre></td></tr></table></figure>
+
+<p>这里我用一个实例加深大家的理解，例如程序在链接时发现scanf定义在动态库时，链接器生成一小段代码scanf_stub,这就是我们的PLT表，然后scanf_stub地址取代原来的scanf,因此程序此时就转换为链接scanf_stub，这个过程叫链接重定位，然后在运行时动态库glibc中的scanf_libc地址填入GOT表，然后程序通过scanf_stub访问到scanf_libc，这个过程叫运行时重定位。</p>
+<p>讲到这里，其实我们对PLT和GOT表的作用已经了解了，<code>PLT（程序链接表）</code>就是链接时需要存放外部函数的数据段，<code>GOT（全局偏移表）</code>是存放函数地址的代码</p>
+<p><strong>PLT和GOT的结构：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">PLT表中的第一项为公共表项，剩下的是每个动态库函数为一项,每项PLT都从对应的GOT表项中读取目标函数地址</span><br><span class="line"></span><br><span class="line">GOT表中前3个为特殊项，分别用于保存 .dynamic段地址、本镜像的link_map数据结构地址和_dl_runtime_resolve函数地址</span><br><span class="line">dynamic段：提供动态链接的信息，例如动态链接中各个表的位置</span><br><span class="line">link_map：已加载库的链表，由动态库函数的地址构成的链表</span><br><span class="line">_dl_runtime_resolve：在第一次运行时进行地址解析和重定位工作</span><br></pre></td></tr></table></figure>
+
+<p>根据操作系统规定不允许修改代码段，只能修改数据段，所以PLT表是不变的，GOT表是可以改变的</p>
+<table>
+<thead>
+<tr>
+<th>.plt</th>
+<th>代码段</th>
+<th>RE（可读，可执行）</th>
+<th>.plt section 实际就是通常所说的过程链接表（Procedure Linkage Table, PLT）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>.plt.got</td>
+<td>代码段</td>
+<td>RE</td>
+<td>.plt.got section 用于存放 __cxa_finalize 函数对应的 PLT 条目</td>
+</tr>
+<tr>
+<td>.got</td>
+<td>数据段</td>
+<td>RW（可读，可写）</td>
+<td>.got section 中可以用于存放全局变量的地址；.got section 中也可以用于存放不需要延迟绑定的函数的地址。</td>
+</tr>
+<tr>
+<td>.got.plt</td>
+<td>数据段</td>
+<td>RW</td>
+<td>.got.plt section 用于存放需要延迟绑定的函数的地址</td>
+</tr>
+</tbody></table>
+<p>因此我们可以看一下程序调用PLT表和GOT表的逻辑</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/7.png" alt="image-20220517105915852"></p>
+<p>最后我们来详细看一下程序调用函数的变化流程：</p>
+<p><strong>程序第一次调用函数时：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/8.png" alt="image-20220517105915852"></p>
+<p>此时第一步由函数调用跳入到PLT表中，然后第二步PLT表跳到GOT表中，可以看到第三步由GOT表回跳到PLT表中，这时候进行压栈，把代表函数的ID压栈，接着第四步跳转到公共的PLT表项中，第5步进入到GOT表中，然后_dl_runtime_resolve对动态函数进行地址解析和重定位，第七步把动态函数真实的地址写入到GOT表项中，然后执行函数并返回，此时GOT表中就存放了函数的真实地址</p>
+<p><strong>之后函数被调用时：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/9.png" alt="image-20220517105915852"></p>
+<p>第一步还是由函数调用跳入到PLT表，但是第二步跳入到GOT表中时，由于这个时候该表项已经是动态函数的真实地址了，所以可以直接执行然后返回</p>
+<h2 id="三、NDK基础知识"><a href="#三、NDK基础知识" class="headerlink" title="三、NDK基础知识"></a>三、NDK基础知识</h2><p>这里我们主要介绍Android中的so文件加载的原理，为后面hook技术讲解做铺垫：</p>
+<h3 id="1-Android-so文件的类型"><a href="#1-Android-so文件的类型" class="headerlink" title="1.Android so文件的类型"></a>1.Android so文件的类型</h3><p>NDK开发的so不再具备跨平台特性，需要编译提供不同平台支持</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/10.png" alt="image-20210919152200104"></p>
+<p>我们从官网可以得知so文件在不同架构下也不同，这里依次对应<code>arm32位和64位，x86_32位和64位</code></p>
+<p>我们可以使用指令查看我们手机的架构：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">adb shell</span><br><span class="line">cat /proc/cpuinfo</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/11.png" alt="image-20210919155021588"></p>
+<h3 id="2-so文件加载"><a href="#2-so文件加载" class="headerlink" title="2.so文件加载"></a>2.so文件加载</h3><p>Android中我们通常使用系统提供的两种API：System.loadLibrary或者System.load来加载so文件：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">//加载的是libnative-lib.so，注意的是这边只需要传入&quot;native-lib&quot;</span><br><span class="line">System.loadLibrary(&quot;native-lib&quot;);</span><br><span class="line">//传入的是so文件完整的绝对路径</span><br><span class="line">System.load(&quot;/data/data/应用包名/lib/libnative-lib.so&quot;)</span><br></pre></td></tr></table></figure>
+
+<p>System.loadLibrary()和System.load()的区别：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）loadLibray传入的是编译脚本指定生成的so文件名称，一般不需要包含开头的lib和结尾的.so，而load传入的是so文件所在的绝对路径</span><br><span class="line">（<span class="number">2</span>）loadLibrary传入的不能是路径，查找so时会优先从应用本地路径下(/data/data/$&#123;<span class="keyword">package</span>-name&#125;/lib/arm/)进行查找，不存在的话才会从系统lib路径下(/system/lib、/vendor/lib等)进行查找；而load则没有路径查找的过程</span><br><span class="line">（<span class="number">3</span>）load传入的不能是sdcard路径，会导致加载失败，一般只支持应用本地存储路径/data/data/$&#123;<span class="keyword">package</span>-name&#125;/，或者是系统lib路径system/lib等这<span class="number">2</span>类路径</span><br><span class="line">（<span class="number">4</span>）loadLibrary加载的都是一开始就已经打包进apk或系统的so文件了，而load可以是一开始就打包进来的so文件，也可以是后续从网络下载，外部导入的so文件</span><br><span class="line">（<span class="number">5</span>）重复调用loadLibrar,load并不会重复加载so，会优先从已加载的缓存中读取，所以只会加载一次</span><br><span class="line">（<span class="number">6</span>）加载成功后会去搜索so是否有<span class="string">&quot;JNI_OnLoad&quot;</span>，有的话则进行调用，所以<span class="string">&quot;JNI_OnLoad&quot;</span>只会在加载成功后被主动回调一次，一般可以用来做一些初始化的操作，比如动态注册jni相关方法等</span><br></pre></td></tr></table></figure>
+
+<p><strong>源码分析：</strong></p>
+<p><strong>Android 6.0：</strong></p>
+<p>[System.java] java.lang.System:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">  <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">load</span><span class="params">(String pathName)</span> &#123;</span><br><span class="line">        Runtime.getRuntime().load(pathName, VMStack.getCallingClassLoader());</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">loadLibrary</span><span class="params">(String libName)</span> &#123;</span><br><span class="line">       Runtime.getRuntime().loadLibrary(libName, VMStack.getCallingClassLoader());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>[Runtime.java] java.lang.Runtime:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"> <span class="keyword">void</span> <span class="title function_">load</span><span class="params">(String absolutePath, ClassLoader loader)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (absolutePath == <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">NullPointerException</span>(<span class="string">&quot;absolutePath == null&quot;</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="type">String</span> <span class="variable">error</span> <span class="operator">=</span> doLoad(absolutePath, loader);</span><br><span class="line">        <span class="keyword">if</span> (error != <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">UnsatisfiedLinkError</span>(error);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">loadLibrary</span><span class="params">(String nickname)</span> &#123;</span><br><span class="line">        loadLibrary(nickname, VMStack.getCallingClassLoader());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">void</span> <span class="title function_">loadLibrary</span><span class="params">(String libraryName, ClassLoader loader)</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (loader != <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="type">String</span> <span class="variable">filename</span> <span class="operator">=</span> loader.findLibrary(libraryName);</span><br><span class="line">            <span class="keyword">if</span> (filename == <span class="literal">null</span>) &#123;...</span><br></pre></td></tr></table></figure>
+
+<p>我们对比了Android6.0下的System.load和System.loadLibrary:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">我们可以发现System.loadLibrary()中会修改类加载器，这个在我们后面hook过程可能会报错，而Runtime.loadLibray()中有重写的方法，则可以正确实现</span><br></pre></td></tr></table></figure>
+
+<p><strong>Android 7.0：</strong></p>
+<p>[System.java] java.lang.System:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">load</span><span class="params">(String filename)</span> &#123;</span><br><span class="line">      Runtime.getRuntime().load0(VMStack.getStackClass1(), filename);</span><br><span class="line">  &#125;</span><br><span class="line"> </span><br><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">loadLibrary</span><span class="params">(String libname)</span> &#123;</span><br><span class="line">      Runtime.getRuntime().loadLibrary0(VMStack.getCallingClassLoader(), libname);</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>[Runtime.java] java.lang.Runtime:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">synchronized</span> <span class="keyword">void</span> <span class="title function_">load0</span><span class="params">(Class fromClass, String filename)</span> &#123;</span><br><span class="line">       <span class="keyword">if</span> (!(<span class="keyword">new</span> <span class="title class_">File</span>(filename).isAbsolute())) &#123;</span><br><span class="line">           <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">UnsatisfiedLinkError</span>(</span><br><span class="line">               <span class="string">&quot;Expecting an absolute path of the library: &quot;</span> + filename);        &#125;</span><br><span class="line">       <span class="keyword">if</span> (filename == <span class="literal">null</span>) &#123;</span><br><span class="line">           <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">NullPointerException</span>(<span class="string">&quot;filename == null&quot;</span>);</span><br><span class="line">       &#125;</span><br><span class="line">       <span class="type">String</span> <span class="variable">error</span> <span class="operator">=</span> doLoad(filename, fromClass.getClassLoader());</span><br><span class="line">       <span class="keyword">if</span> (error != <span class="literal">null</span>) &#123;</span><br><span class="line">           <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">UnsatisfiedLinkError</span>(error);</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br><span class="line">   </span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">loadLibrary</span><span class="params">(String libname, ClassLoader classLoader)</span> &#123;</span><br><span class="line">       java.lang.System.logE(<span class="string">&quot;java.lang.Runtime#loadLibrary(String, ClassLoader)&quot;</span> +</span><br><span class="line">                             <span class="string">&quot; is private and will be removed in a future Android release&quot;</span>);</span><br><span class="line">      loadLibrary0(classLoader, libname);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们可以发现不同版本的区别：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Android <span class="number">6.0</span>采用的是loadLibrary,<span class="number">6.0</span>之后都采用的是loadLibrary0; 同理 load函数也一样,<span class="number">6.0</span>之后采用的是load0</span><br></pre></td></tr></table></figure>
+
+<p>同时我们分析了loadLibrary0：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">1. classLoader存在时，通过classLoader.findLibrary(libraryName)来获取存放指定so文件的路径；</span><br><span class="line">2. classLoader不存在时，则通过getLibPaths()接口来获取</span><br><span class="line">3. 最终调用nativeLoad加载指定路径的so文件</span><br></pre></td></tr></table></figure>
+
+<h2 id="四、各类hook技术原理分析"><a href="#四、各类hook技术原理分析" class="headerlink" title="四、各类hook技术原理分析"></a>四、各类hook技术原理分析</h2><p>hook技术就是指截获进程对某个API函数的调用，使得API的执行流程转向我们实现的代码片段，从而实现我们要的功能，在Android中使用hook的方法有很多，常用的Xposed和frida hook技术、inlinehook技术、基于inlinehook的开源框架Sandhook、PLT&#x2F;Got hook技术、以及当下模拟cpu的Unicorn的hook技术，下面我们将逐一介绍其原理。</p>
+<h3 id="1-Xposed-hook技术"><a href="#1-Xposed-hook技术" class="headerlink" title="1.Xposed hook技术"></a>1.Xposed hook技术</h3><p>Xposed的基本原理，我在<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269627.htm">源码编译（3）——Xposed框架定制</a>中已经给大家做了详细的讲解，其主要就是Android应用进程都是由 zygote 进程孵化而来，zygote对应的可执行程序就是app_process,posed 框架通过替换系统的 app_process 可执行文件以及虚拟机动态链接库，让 zygote 在启动应用程序进程时注入框架代码，进而实现对应用程序进程的劫持。</p>
+<p>具体怎么实现hook技术，Xposed就是通过修改了Art虚拟机，将需要hook的函数注册为Native函数，当执行这一函数时，虚拟机会优先执行Native函数，然后执行java函数，这样就成功完成了函数的hook。</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/12.png" alt="image-20210919155021588"></p>
+<p>具体实现流程:</p>
+<p>在 Android 系统启动的时候， zygote 进程加载 XposedBridge 将所有需要替换的 Method 通过 JNI 方法 hookMethodNative 指向 Native 方法 xposedCallHandler ， xposedCallHandler 在转入 handleHookedMethod 这个 Java 方法执行用户规定的 Hook Func</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/14.png" alt="image-20220517133042720"></p>
+<p>dvmCallMethodV会根据accessFlags决定调用native还是java函数，因此修改accessFlags后，Dalvik会认为这个函数是一个native函数，便走向了native分支也就是说Xposed在对java方法进行hook时，先将虚拟机里面这个方法的Method的accessFlag改为native对应的值，然后将该方法的nativeFunc指向自己实现的一个native方法，这样方法在调用时，就会调用到这个native方法，接管了控制权</p>
+<p>其他的就详细参考上篇文章了</p>
+<h3 id="2-Frida-hook技术"><a href="#2-Frida-hook技术" class="headerlink" title="2.Frida hook技术"></a>2.Frida hook技术</h3><p>frida 也是一种动态插桩工具，原理和Xposed hook一样，也是把java method转为native method，但是Art下的实现与Dalivk有所不同，这里就需要了解ART的运行机制，这里主要参考博客：<a target="_blank" rel="noopener" href="https://mabin004.github.io/2018/07/31/Mac%E4%B8%8A%E7%BC%96%E8%AF%91Frida/">Frida源码分析</a></p>
+<p>ART 是一种代替 Dalivk 的新的运行时,它具有更高的执行效率。ART虚拟机执行 Java 方法主要有两种模式：quick code 模式和 Interpreter 模式</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">quick code 模式：执行 arm 汇编指令</span><br><span class="line">Interpreter 模式：由解释器解释执行 Dalvik 字节码</span><br></pre></td></tr></table></figure>
+
+<p>即使是在quick code模式中，也有类方法可能需要以Interpreter模式执行。反之亦然。解释执行的类方法通过函数artInterpreterToCompiledCodeBridge的返回值调用本地机器指令执行的类方法；本地机器指令执行的类方法通过函数GetQuickToInterpreterBridge的返回值调用解释执行的类方法</p>
+<p>这里引用博客中的一张图</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/15.png" alt="image-20220517133042720"></p>
+<p>如图，对于一个native方法，ART虚拟机会先尝试使用quickcode的模式去执行，并检查ARTMethod结构中的entry_point_from_quick_compiled<em>code</em>成员，这里分3种情况：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">1.如果函数已经存在quick code, 则指向这个函数对应的 quick code的起始地址，而当quick code不存在时，它的值则会代表其他的意义；</span><br><span class="line">2.当一个 java 函数不存在 quick code时，它的值是函数 artQuickToInterpreterBridge 的地址，用以从 quick 模式切换到 Interpreter 模式来解释执行 java 函数代码；</span><br><span class="line">3.当一个 java native（JNI）函数不存在 quick code时，它的值是函数 art_quick_generic_jni_trampoline 的地址，用以执行没有quick code的 jni 函数</span><br></pre></td></tr></table></figure>
+
+<p>因此，frida将一个java method修改jni mthod 显然是不存在quick code，这时需要将entry_point_from_quick_compiled<em>code</em>值修改为art_quick_generic_jni_trampoline 的地址</p>
+<p>总结，frida把java method改为jni method，需要修改ARTMethod结构体中的这几个值：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">accessflags = native</span><br><span class="line">entry_point_fromjni = 自定义代码的入口</span><br><span class="line">entry_point_from_quick_compiledcode = art_quick_generic_jni_trampoline函数的地址</span><br><span class="line">entry_point_frominterpreter = artInterpreterToCompiledCodeBridge函数地址</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-inlinehook-技术"><a href="#3-inlinehook-技术" class="headerlink" title="3.inlinehook 技术"></a>3.inlinehook 技术</h3><h4 id="（1）基本原理"><a href="#（1）基本原理" class="headerlink" title="（1）基本原理"></a>（1）基本原理</h4><p>首先，我们先介绍一下什么是inline Hook:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">inline Hook是一种拦截目标函数调用的方法，主要用于杀毒软件、沙箱和恶意软件。一般的想法是将一个函数重定向到我们自己的函数，以便我们可以在函数执行它之前和/或之后执行处理；这可能包括：检查参数、填充、记录、欺骗返回的数据和过滤调用。</span><br><span class="line">hook是通过直接修改目标函数内的代码来放置，通常是用跳转覆盖的前几个字节，允许在函数进行任何处理之前重定向执行。</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）inlineHook组成"><a href="#（2）inlineHook组成" class="headerlink" title="（2）inlineHook组成"></a>（2）inlineHook组成</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">hook:一个5字节的相对跳转，在被写入目标函数以钩住它，跳转将从被钩住的函数跳转到我们的代码</span><br><span class="line">proxy:这是我们指定的函数（或代码），放置在目标函数上的钩子将跳转到该函数（或代码）</span><br><span class="line">Trampoline:用于绕过钩子，以便我们可以正常调用钩子函数</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）inlineHook实现"><a href="#（3）inlineHook实现" class="headerlink" title="（3）inlineHook实现"></a>（3）inlineHook实现</h4><p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/16.png" alt="image-20210918161352124"></p>
+<p>从示意图上，我们可以这样理解：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">我们将目标函数MessgeBoxA()中的地址拿出来，然后我们用重写的hook函数替换，然后我们执行完成之后，再回调到函数的执行地址出，保证程序的正常运行</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/17.png" alt="image-20210919152200104"></p>
+<p>我们也可以通过上述示意图去理解inlinehook的基本原理</p>
+<h4 id="（4）Android-Inline-Hook和SandHook-技术"><a href="#（4）Android-Inline-Hook和SandHook-技术" class="headerlink" title="（4）Android-Inline-Hook和SandHook 技术"></a>（4）Android-Inline-Hook和SandHook 技术</h4><p>Android-lnline-Hook和SandHook都是基于inlinehook的两种开源框架，在Android中对native层hook，使用的比较常见，前者主要针对32位进行hook，后者即可以用于32位也可以用于64位，但是官方表示32位并未进行测试，所以应用在64位上仍然更多</p>
+<h3 id="4-PLT-x2F-GOT-hook技术"><a href="#4-PLT-x2F-GOT-hook技术" class="headerlink" title="4.PLT&#x2F;GOT hook技术"></a>4.PLT&#x2F;GOT hook技术</h3><p>前面我们已经很详细的讲述了全局偏移表（GOT）和动态链接表（PLT）,Inline Hook能Hook几乎所有函数，但是兼容性较差，不能达到上线标准,相比于inlineHook，GOT Hook兼容性比较好，可以达到上线标准，但是只能Hook基于GOT表的一些函数</p>
+<p>GOT&#x2F;PLT Hook 主要是通过解析SO文件，将待hook函数在got表的地址替换为自己函数的入口地址，这样目标进程每次调用待hook函数时，实际上是执行了我们自己的函数</p>
+<p>这里我们还要理解GOT表中含包含了导入表和导出表</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">导出表指将当前动态库的一些函数符号保留，供外部调用</span><br><span class="line">导入表中的函数实际是在该动态库中调用外部的导出函数</span><br></pre></td></tr></table></figure>
+
+<p>例如导入表存放的是一些其他so的函数，例如libc的open，而导出表存放的是一些共其他so调用的函数，比如自己so中编写的函数，而无论导入表还是导出表基本都是针对导出函数，针对非导出函用inlinehook更常用一些</p>
+<h3 id="5-Unicorn-hook技术"><a href="#5-Unicorn-hook技术" class="headerlink" title="5.Unicorn hook技术"></a>5.Unicorn hook技术</h3><p>Unicore是一款非常优秀的跨平台模拟执行框架，该框架可以跨平台执行Arm, Arm64 (Armv8), M68K, Mips, Sparc, &amp; X86 (include X86_64)等指令集的原生程序，通过模拟CPU，可以实现很多强大的功能，也可以实现函数级别的Hook</p>
+<p>参考资料：无名大佬文章<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-253868.htm#msg_header_h1_7">Unicorn 在 Android 的应用</a></p>
+<p>nicorn 内部并没有函数的概念，它只是一个单纯的CPU， 没有HOOK_FUNCTION的callback，AndroidNativeEmu 中的函数级Hook 并不是真正意义上的Hook，它不仅能Hook存在的函数，还能Hook不存在的函数。AndroidNativeEmu 使用这种技术实现了JNI函数Hook、库函数Hook。 Jni函数是不存的，Hook它只是为了能够用Python 实现 Jni Functions。有一些库函数是存在的，Hook只是为了重新实现它</p>
+<h2 id="五、各类hook技术实操"><a href="#五、各类hook技术实操" class="headerlink" title="五、各类hook技术实操"></a>五、各类hook技术实操</h2><h3 id="1-Xposed-hook实操"><a href="#1-Xposed-hook实操" class="headerlink" title="1.Xposed hook实操"></a>1.Xposed hook实操</h3><h4 id="（1）环境安装"><a href="#（1）环境安装" class="headerlink" title="（1）环境安装"></a>（1）环境安装</h4><p>Xposed环境安装详细可以参考我写的Xposed系列文章，这里只是简单的总结一下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">(<span class="number">1</span>) <span class="number">4.4</span>以下Android版本安装比较简单，只需要两步即可</span><br><span class="line">	<span class="number">1.</span>对需要安装Xposed的手机进行root</span><br><span class="line">	<span class="number">2.</span>下载并安装xposedInstaller,之后授权其root权限，进入app点击安装即可</span><br><span class="line">    但是由于官网不在维护，导致无法直接通过xposedinstaller下载补丁包</span><br><span class="line">（<span class="number">2</span>）Android <span class="number">5.0</span>-<span class="number">8.0</span> 由于<span class="number">5.0</span>后出现ART，所以安装步骤分成两个部分：xposed.zip 和 </span><br><span class="line">    XposedInstaller.apk,zip文件是框架主体，需要进入Recovery后刷入，apk文件用于Xposed管理</span><br><span class="line">    <span class="number">1.</span>完成对手机的root，并刷入reconvery(比如twrp),使用Superroot</span><br><span class="line">    <span class="number">2.</span>下载你对应的zip补丁包，并进入recovery刷入</span><br><span class="line">    <span class="number">3.</span>重启手机，安装xposedInstaller并授予root权限即可</span><br><span class="line">    官网地址：https:<span class="comment">//dl-xda.xposed.info/framework/</span></span><br><span class="line">（<span class="number">3</span>）由于Android <span class="number">8.0</span>后，Xposed官方作者没有再对其更新，我们一般就使用国内大佬riyu的Edxposed框架</span><br><span class="line">	Magisk + riyu + Edxposed</span><br></pre></td></tr></table></figure>
+
+<p>这里我们用的是nexus5进行操作，简单演示一下android6.0的Xposed安装</p>
+<p>资源准备：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">asop镜像：https://developers.google.com/android/ota#hammerhead</span><br><span class="line">twrp:     https://twrp.me/</span><br><span class="line">xposed:   https://dl-xda.xposed.info/framework/</span><br><span class="line">xposed installer https://repo.xposed.info/module/de.robv.android.xposed.installer</span><br></pre></td></tr></table></figure>
+
+<p>首先我们先下载n5镜像，然后刷机，这里我们已经安装就不再安装了</p>
+<p>然后我们刷入 twrp-3.4.0-0-hammerhead.img </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">fastboot flash recovery twrp-3.4.0-0-hammerhead.img </span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/18.png" alt="image-20210919152200104"></p>
+<p>然后我们就可以进入recovery模式了</p>
+<p>然后我们将Supersu拷贝进去，然后将Xposed-v89-sdk.zip拷贝进去</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/19.png" alt="image-20210919152200104"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/20.png" alt="image-20210919152200104"></p>
+<p>然后我们进入recovery模式，将两个文件依次刷入即可</p>
+<p>接下来我们安装XposedInstall.apk,来管理Xposed</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/21.png" alt="image-20210919152200104"></p>
+<p>如果我们开机后发现xposed框架没有激活，尝试再重启一下，我们可以看见</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/22.png" alt="image-20210919152200104"></p>
+<p>这样我们的Xposed框架就成功安装了</p>
+<h4 id="（2）Xposed插件编写"><a href="#（2）Xposed插件编写" class="headerlink" title="（2）Xposed插件编写"></a>（2）Xposed插件编写</h4><p>Xposed插件编写的流程网上已经有很多了，这里我就简单的讲解一下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">基本流程：</span><br><span class="line">	(<span class="number">1</span>)拷贝XposedBridgeApi.jar到新建工程的libs目录</span><br><span class="line">	(<span class="number">2</span>)修改app目录下的build.gradle文件，在AndroidManifest.xml中增加Xposed相关内容</span><br><span class="line">	(<span class="number">3</span>)新建hook类，编写hook代码</span><br><span class="line">	(<span class="number">4</span>)新建assets文件夹，然后在assets目录下新建文件xposed_init,在里面写上hook类的完整路径</span><br></pre></td></tr></table></figure>
+
+<p>首先，我们查找XposedBridgeApi.jar到新建工程的libs目录：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/23.png" alt="image-20210919152200104"></p>
+<p>然后，修改AndroidManifest.xml文件，在Application标签下增加内容如下：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">&lt;meta-data</span><br><span class="line">    <span class="attr">android</span>:name=<span class="string">&quot;xposedmodule&quot;</span>   <span class="comment">//是否配置为Xposed插件，设置为true</span></span><br><span class="line">    <span class="attr">android</span>:value=<span class="string">&quot;true&quot;</span>/&gt;</span><br><span class="line"><span class="language-xml"><span class="tag">&lt;<span class="name">meta-data</span></span></span></span><br><span class="line"><span class="tag"><span class="language-xml">    <span class="attr">android:name</span>=<span class="string">&quot;xposeddescription&quot;</span>   //<span class="attr">模块名称</span></span></span></span><br><span class="line"><span class="tag"><span class="language-xml">    <span class="attr">android:value</span>=<span class="string">&quot;模块描述&quot;</span>/&gt;</span></span></span><br><span class="line"><span class="language-xml"><span class="tag">&lt;<span class="name">meta-data</span></span></span></span><br><span class="line"><span class="tag"><span class="language-xml">    <span class="attr">android:name</span>=<span class="string">&quot;xposedminversion&quot;</span>   //<span class="attr">最低版本号</span></span></span></span><br><span class="line"><span class="tag"><span class="language-xml">    <span class="attr">android:value</span>=<span class="string">&quot;54&quot;</span>/&gt;</span></span></span><br></pre></td></tr></table></figure>
+
+<p>修改app目录下的build.gradle文件：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">进入app目录下的build.<span class="property">gradle</span>文件，	</span><br><span class="line">	compile <span class="title function_">fileTree</span>(<span class="attr">includes</span>:[<span class="string">&#x27;*.jar&#x27;</span>],<span class="attr">dir</span>:<span class="string">&#x27;libs&#x27;</span>)</span><br><span class="line">	替换成</span><br><span class="line">	provided <span class="title function_">fileTree</span>(<span class="attr">includes</span>:[<span class="string">&#x27;*.jar&#x27;</span>],<span class="attr">dir</span>:<span class="string">&#x27;libs&#x27;</span>)</span><br><span class="line">现在provided变为 compileOnly </span><br><span class="line">如果使用compile,可以正常编译生成插件apk,但是当安装到手机上后，xposed会报错，无法正常工作</span><br></pre></td></tr></table></figure>
+
+<p>编写hook类：</p>
+<p>我们新建一个hook类xposed01，并实现接口IXposedHookLoadPackage,并实现里面关键方法handleLoadPackage(XC_LoadPackage.LoadPackageParam loadPackageParam)，该方法会在每个软件被启动的时候回调，所以一般需要通过目标包名过滤</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">Xposed01</span> <span class="keyword">implements</span> <span class="title class_">IXposedHookLoadPackage</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">handleLoadPackage</span><span class="params">(XC_LoadPackage.LoadPackageParam loadPackageParam)</span> <span class="keyword">throws</span> Throwable &#123;</span><br><span class="line">        <span class="keyword">if</span>(loadPackageParam.packageName.equals(<span class="string">&quot;com.example.xposedlesson2&quot;</span>))&#123;  <span class="comment">//判断目标包名</span></span><br><span class="line">            XposedBridge.log(<span class="string">&quot;XLZH&quot;</span>+loadPackageParam.packageName);  <span class="comment">//打出包名的信息</span></span><br><span class="line">            Log.i(<span class="string">&quot;Xposed01&quot;</span>,loadPackageParam.packageName);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>新建assets文件夹，然后在assets目录下新建文件xposed_init,在里面写上hook类的完整路径</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/24.png" alt="image-20210919152200104"></p>
+<p>这里面可以写多个hook类，每个类写一个，我们就完成了基本的Xposed框架的编写</p>
+<p>最后勾选模块，并重启即可生效</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/25.png" alt="image-20210919152200104"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/26.png" alt="image-20210919152200104"></p>
+<p>我们可以发现我们的xposed插件生效了，将我们系统中进程名打印出来了,说明hook成功了</p>
+<h3 id="2-frida-hook实操"><a href="#2-frida-hook实操" class="headerlink" title="2.frida hook实操"></a>2.frida hook实操</h3><h4 id="（1）环境安装-1"><a href="#（1）环境安装-1" class="headerlink" title="（1）环境安装"></a>（1）环境安装</h4><p>frida安装，使用frida过程中我们可以安装objection来进一步助力我们的hook工作，这个参考肉丝大佬的知识星球</p>
+<p>工具安装（也可以选用其他版本）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">pip install frida==12.8.0</span><br><span class="line">pip install frida-tools==5.3.0</span><br><span class="line">pip install objection==1.8.4</span><br></pre></td></tr></table></figure>
+
+<p>安装成功后，查看frida和objection，确定版本正确</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">frida --version</span><br><span class="line">objection --help</span><br></pre></td></tr></table></figure>
+
+<p>然后将frida_server推送到<code>/data/local/tmp</code>下，并启动：（下载地址：<a target="_blank" rel="noopener" href="https://github.com/frida/frida/releases%EF%BC%89">https://github.com/frida/frida/releases）</a></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/27.png" alt="image-20220517153822302"></p>
+<h4 id="（2）frida使用"><a href="#（2）frida使用" class="headerlink" title="（2）frida使用"></a>（2）frida使用</h4><p>然后我们就可以使用自动化工具objection和编写js脚本进行hook了</p>
+<p>objection使用（详细参考肉丝大佬github的教程）：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">常见的hook命令：</span><br><span class="line">objection -g com.<span class="property">android</span>.<span class="property">settings</span> explore  <span class="comment">//注入设置应用</span></span><br><span class="line">android hooking list activities  <span class="comment">//查看Activity，service相同</span></span><br><span class="line">android intent launch_activity com.<span class="property">android</span>.<span class="property">settings</span>.<span class="property">DisplaySettings</span>  <span class="comment">//实现Activity跳转</span></span><br><span class="line">android heap search instances com.<span class="property">android</span>.<span class="property">settings</span>.<span class="property">DisplaySettings</span>   <span class="comment">//搜索类的实例</span></span><br><span class="line">android heap execute <span class="number">0x2526</span> getPreferenceScreenResId    <span class="comment">//主动调用实例</span></span><br><span class="line">android hooking list classes  <span class="comment">//列出内存中所有类</span></span><br><span class="line">android hooking search methods display  <span class="comment">//列出内存中所有的方法</span></span><br><span class="line">android hooking watch <span class="keyword">class</span> <span class="title class_">android</span>.<span class="property">bluetooth</span>.<span class="property">BluetoothDevice</span>  <span class="comment">//hook相关类的所有方法</span></span><br><span class="line">android hooking watch class_method android.<span class="property">bluetooth</span>.<span class="property">BluetoothDevice</span>.<span class="property">getName</span> --dump-args --dump-<span class="keyword">return</span> --dump-backtrace  <span class="comment">//打印具体方法的参数、返回值、堆栈信息</span></span><br></pre></td></tr></table></figure>
+
+<p>编写脚本：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/28.png" alt="image-20220517154213936"></p>
+<p>启动方式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">attach方式 frida -U com.example.test -l hook.js</span><br><span class="line">spwan启动 frida -U -f com.example.test -l demo1.js --no-pause</span><br></pre></td></tr></table></figure>
+
+<p>这样我们就可以成功注入了，更加复杂的脚本编写可以参考<a target="_blank" rel="noopener" href="https://github.com/hookmaster/frida-all-in-one">frida博客</a></p>
+<p>详细案例实操，这里可以参考之前我的文章:<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269128.htm">Android恶意样本分析——frida破解三层锁机样本</a></p>
+<h3 id="3-inlinehook实操"><a href="#3-inlinehook实操" class="headerlink" title="3.inlinehook实操"></a>3.inlinehook实操</h3><p>这里我们分别实现基于inlinehook的两个开源框架的具体使用方法</p>
+<h4 id="（1）Android-lnine-Hook"><a href="#（1）Android-lnine-Hook" class="headerlink" title="（1）Android-lnine-Hook"></a>（1）Android-lnine-Hook</h4><p>开源地址：<a target="_blank" rel="noopener" href="https://github.com/ele7enxxh/Android-Inline-Hook">https://github.com/ele7enxxh/Android-Inline-Hook</a></p>
+<p>该框架只能针对32位的so文件进行hook</p>
+<p>我们对so文件进行hook时，可以按照如下步骤进行：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（1）查看so文件中的目标函数</span><br><span class="line">（2）编写Xposed hook代码，hook目标程序</span><br><span class="line">（3）编写so层hook代码，hook so中的函数地址</span><br><span class="line">（4）链接Java层和so层</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-1-gt-编写目标函数so文件"><a href="#lt-1-gt-编写目标函数so文件" class="headerlink" title="&lt;1&gt;编写目标函数so文件"></a>&lt;1&gt;编写目标函数so文件</h5><p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/29.png" alt="image-20220517160033161"></p>
+<p>我们编写案例，很明显这里会打印失败，然后我们使用inline-hook框架进行hook</p>
+<h5 id="lt-2-gt-导入文件"><a href="#lt-2-gt-导入文件" class="headerlink" title="&lt;2&gt;导入文件"></a>&lt;2&gt;导入文件</h5><p>我们将该框架中如下文件导入我们的项目中</p>
+<p>我们需要使用<a target="_blank" rel="noopener" href="https://github.com/ele7enxxh/Android-Inline-Hook">inlineHook</a>文件夹，并把这些文件直接拷贝到我们的工作目录：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/30.png" alt="image-20210919152200104"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/31.png" alt="image-20210919152200104"></p>
+<h5 id="lt-3-gt-修改配置文件"><a href="#lt-3-gt-修改配置文件" class="headerlink" title="&lt;3&gt;修改配置文件"></a>&lt;3&gt;修改配置文件</h5><p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/32.png" alt="image-20220517160824232"></p>
+<h5 id="lt-4-gt-编写hook代码"><a href="#lt-4-gt-编写hook代码" class="headerlink" title="&lt;4&gt;编写hook代码"></a>&lt;4&gt;编写hook代码</h5><p>我们导入inlinehook头文件就可以开始编写hook代码了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/33.png" alt="image-20220517160918834"></p>
+<p>编译，报错：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/34.png" alt="image-20220517163117937"></p>
+<p>这是因为框架仅仅针对32位，所以我们需要在配置文件里面指定一下</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/35.png" alt="image-20220517163519977"></p>
+<p>然后编译，发现能正常通过</p>
+<p>首先声明hook的就函数，然后编写对应的新函数，这里我们hook的是<code>strstr函数</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/36.png" alt="image-20220517185051670"></p>
+<p>然后调用inlinehook进行hook</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/37.png" alt="image-20220517185429734"></p>
+<p>最后我们发现就可以成功的hook</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/38.png" alt="image-20220517185538606"></p>
+<p>代码分析：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">源码解析：</span><br><span class="line">	（<span class="number">1</span>）dlopen：该函数将打开一个新库，并把它装入内存</span><br><span class="line">		<span class="keyword">void</span> *dlopen(const <span class="type">char</span> *filename, <span class="type">int</span> flag);</span><br><span class="line">		参数<span class="number">1</span>：文件名就是一个动态库so文件，标志位：RTLD_NOW 的话，则立刻计算；设置的是 RTLD_LAZY，则在需要的时候才计算</span><br><span class="line">		libc.so是一个共享库</span><br><span class="line">		======================</span><br><span class="line">		参数中的 libname 一般是库的全路径，这样 dlopen 会直接装载该文件；如果只是指定了库名称，在 dlopen 会按照下面的机制去搜寻：</span><br><span class="line">		根据环境变量 LD_LIBRARY_PATH 查找</span><br><span class="line">		根据 /etc/ld.so.cache 查找</span><br><span class="line">		查找依次在 /lib 和 /usr/lib 目录查找。</span><br><span class="line">		flag 参数表示处理未定义函数的方式，可以使用 RTLD_LAZY 或 RTLD_NOW 。 RTLD_LAZY 表示暂时不去处理未定义函数，先把库装载到内存，等用到没定义的函数再说； RTLD_NOW 表示马上检查是否存在未定义的函数，若存在，则 dlopen 以失败告终。</span><br><span class="line">		参考链接：https:<span class="comment">//blog.nowcoder.net/n/5b2c04bbcccf431e9f1ab34aa02717fe</span></span><br><span class="line">		=======================</span><br><span class="line">	（<span class="number">2</span>）dlsym:在 dlopen 之后，库被装载到内存。 dlsym 可以获得指定函数( symbol )在内存中的位置(指针)。</span><br><span class="line">		 <span class="keyword">void</span> *dlsym(<span class="keyword">void</span> *handle,const <span class="type">char</span> *symbol);</span><br><span class="line">		 参数<span class="number">1</span>：文件句柄  参数<span class="number">2</span>：函数名</span><br></pre></td></tr></table></figure>
+
+<p>inlinehook框架使用正确姿势：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">我们对一个目标so文件hook步骤如下：</span><br><span class="line">	（<span class="number">1</span>）我们获取so的handler，使用dlopen函数</span><br><span class="line">		<span class="keyword">void</span>* libhandler = dlopen(<span class="string">&quot;libc.so&quot;</span>,RTLD_NOW);</span><br><span class="line">	（<span class="number">2</span>）我们获取hook目标函数的地址,使用dlsym函数</span><br><span class="line">		<span class="keyword">void</span>* strstr_addr = dlsym(libhandler,函数名);</span><br><span class="line">	（<span class="number">3</span>）声明原来的函数</span><br><span class="line">		<span class="keyword">void</span>* (*oldmethod)*(<span class="type">char</span>*,<span class="type">char</span>*); <span class="comment">//这个格式需要参考hook的函数</span></span><br><span class="line">		声明现在的函数</span><br><span class="line">		<span class="keyword">void</span>* newmethod(<span class="type">char</span>* a,<span class="type">char</span>* b)&#123;</span><br><span class="line">			<span class="keyword">return</span> (<span class="keyword">void</span> *)oldmethod(a,b);</span><br><span class="line">		&#125;</span><br><span class="line">	（<span class="number">3</span>）使用registerInlinehook进行重定向，将hook函数地址重定向我们编写的新函数上</span><br><span class="line">		(registerInlineHook((uint32_t) strstr_addr, (uint32_t) new_strstr, (uint32_t **) &amp;old_strstr) != ELE7EN_OK</span><br><span class="line">		<span class="comment">//参数一：hook函数的地址 参数二：替换函数的地址  参数3：用来保存原来函数的地址</span></span><br><span class="line">	（<span class="number">5</span>）我们判断我们的hook操作是否成功,并且再次调用实现hook </span><br><span class="line">		(inlineHook((uint32_t) strstr_addr) == ELE7EN_OK)</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）SandHook实操"><a href="#（2）SandHook实操" class="headerlink" title="（2）SandHook实操"></a>（2）SandHook实操</h4><p>因为上面使用inline框架只支持32位，所以这里我们用SandHook实现对64位native函数的hook，<a target="_blank" rel="noopener" href="https://github.com/asLody/SandHook">sandHook</a>既支持32位、又支持64位</p>
+<p>开源地址：<a target="_blank" rel="noopener" href="https://github.com/asLody/SandHook">https://github.com/asLody/SandHook</a></p>
+<p>同样是上面的案例，这里我们使用SandHook进行实操</p>
+<h5 id="lt-1-gt-导入文件"><a href="#lt-1-gt-导入文件" class="headerlink" title="&lt;1&gt;导入文件"></a>&lt;1&gt;导入文件</h5><p>我们此路径下<code>SandHook/nativehook/src/main/cpp/</code>文件全部导入</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/39.png" alt="image-20220517191708611"></p>
+<h5 id="lt-2-gt-配置环境"><a href="#lt-2-gt-配置环境" class="headerlink" title="&lt;2&gt;配置环境"></a>&lt;2&gt;配置环境</h5><p>首先我们在CMakeList中加入c文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/40.png" alt="image-20220517192031241"></p>
+<p>然后在java代码中修改导入的so库</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/41.png" alt="image-20220517192224416"></p>
+<p>直接编译，报错：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/42.png" alt="image-20220517192315719"></p>
+<p>然后我们同理将配置信息加入：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">cmake &#123;</span><br><span class="line">    arguments <span class="string">&#x27;-DBUILD_TESTING=OFF&#x27;</span></span><br><span class="line">    cppFlags <span class="string">&quot;-frtti -fexceptions -Wpointer-arith&quot;</span></span><br><span class="line">    abiFilters <span class="string">&#x27;armeabi-v7a&#x27;</span>, <span class="string">&#x27;arm64-v8a&#x27;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再次编译成功</p>
+<h5 id="lt-3-gt-编写hook代码"><a href="#lt-3-gt-编写hook代码" class="headerlink" title="&lt;3&gt;编写hook代码"></a>&lt;3&gt;编写hook代码</h5><p>SandHook使用和上面inlinehook框架基本一样</p>
+<p>首先声明旧的函数，编写新的函数（目标函数strstr）</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/43.png" alt="image-20220517193411921"></p>
+<p>然后进行hook</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/44.png" alt="image-20220517193556517"></p>
+<p>最后发现可以成功hook</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/45.png" alt="image-20220517193629093"></p>
+<p>SandHook使用姿势：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）导包，将SandHook中cpp文件夹下的包全部导入到项目中，并修改CMakeLists.txt中添加<span class="keyword">native</span>.cpp, 修改java层导入so库为sandHook-<span class="keyword">native</span></span><br><span class="line">（<span class="number">2</span>）配置相关的环境</span><br><span class="line">	在配置文件build.gradle中配置</span><br><span class="line">	externalNativeBuild &#123;</span><br><span class="line">	      cmake &#123;</span><br><span class="line">		arguments <span class="string">&#x27;-DBUILD_TESTING=OFF&#x27;</span></span><br><span class="line">		cppFlags <span class="string">&quot;-frtti -fexceptions -Wpointer-arith&quot;</span></span><br><span class="line">		abiFilters <span class="string">&#x27;armeabi-v7a&#x27;</span>, <span class="string">&#x27;arm64-v8a&#x27;</span></span><br><span class="line">	      &#125;</span><br><span class="line">	    &#125;</span><br><span class="line">（<span class="number">3</span>）编译可以成功通过</span><br><span class="line">（<span class="number">4</span>）使用</span><br><span class="line">	const <span class="type">char</span> * libc = <span class="string">&quot;/system/lib64/libc.so&quot;</span>;</span><br><span class="line">	old_fopen = reinterpret_cast&lt;<span class="keyword">void</span> *(*)(<span class="type">char</span> *, <span class="type">char</span> *)&gt;(SandInlineHookSym(libc, <span class="string">&quot;fopen&quot;</span>,</span><br><span class="line">                                                                         reinterpret_cast&lt;<span class="keyword">void</span> *&gt;(new_fopen)));</span><br><span class="line">参数<span class="number">2</span>：hook的函数 参数<span class="number">3</span>：新的函数</span><br><span class="line"></span><br><span class="line">添加原理hook旧函数的声明</span><br><span class="line"><span class="keyword">void</span>* (*old_fopen)(<span class="type">char</span>*,<span class="type">char</span>*);</span><br><span class="line">实现新的函数功能</span><br><span class="line"><span class="keyword">void</span>* new_fopen(<span class="type">char</span>* a,<span class="type">char</span>* b)&#123;</span><br><span class="line">    __android_log_print(<span class="number">6</span>,<span class="string">&quot;windaa&quot;</span>,<span class="string">&quot;I am from new open %s&quot;</span>,a);</span><br><span class="line">    <span class="keyword">return</span> old_fopen(a,b);</span><br><span class="line">&#125;</span><br><span class="line">（<span class="number">5</span>）运行测试是否成功启动</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-PLT-x2F-GOT-hook实操"><a href="#4-PLT-x2F-GOT-hook实操" class="headerlink" title="4.PLT&#x2F;GOT hook实操"></a>4.PLT&#x2F;GOT hook实操</h3><p>前面我们已经介绍了Got表hook的原理，下面我们实例操作一下导入表函数的hook</p>
+<p>参考博客：<a target="_blank" rel="noopener" href="https://www.cnblogs.com/goodhacker/p/9306997.html">https://www.cnblogs.com/goodhacker/p/9306997.html</a></p>
+<p>原理：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">通过解析elf格式，分析Section header table找出静态的.got表的位置，并在内存中找到相应的.got表位置，这个时候内存中.got表保存着导入函数的地址，读取目标函数地址，与.got表每一项函数入口地址进行匹配，找到的话就直接替换新的函数地址，这样就完成了一次导入表的Hook操作了</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/46.png" alt="image-20220517193556517"></p>
+<p>首先，我们编写demo</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/47.png" alt="image-20220517193556517"></p>
+<p>我们编译后使用010Editor打开<code>libnative-lib.so</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/48.png" alt="image-20220517193556517"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/49.png" alt="image-20220517193556517"></p>
+<p>然后我们用ida打开，并直接跳转到该地址</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/50.png" alt="image-20220517193556517"></p>
+<p>在got表中我们找到对应的mywin0函数</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/51.png" alt="image-20220517193556517"></p>
+<h5 id="lt-1-gt-获得so模块的加载地址"><a href="#lt-1-gt-获得so模块的加载地址" class="headerlink" title="&lt;1&gt;获得so模块的加载地址"></a>&lt;1&gt;获得so模块的加载地址</h5><p>我们可以使用<code>/proc/self/maps</code>去获得so模块的加载地址</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">char</span> line[<span class="number">1024</span>];</span><br><span class="line">    <span class="type">int</span> *start;</span><br><span class="line">    <span class="type">int</span> *end;</span><br><span class="line">    <span class="type">int</span> n=<span class="number">1</span>;</span><br><span class="line">    <span class="comment">//1.拿到so的起始地址</span></span><br><span class="line"><span class="comment">//    749e5d7000-749e5db000 r--p 000f4000 103:09 441                           /system/bin/linker64</span></span><br><span class="line"><span class="comment">//    749e5db000-749e5dc000 rw-p 000f8000 103:09 441                           /system/bin/linker64</span></span><br><span class="line">    FILE *fd = fopen(<span class="string">&quot;/proc/self/maps&quot;</span>,<span class="string">&quot;r&quot;</span>);</span><br><span class="line">    <span class="keyword">while</span> (fgets(line,<span class="keyword">sizeof</span>(line),fd))&#123;</span><br><span class="line">        <span class="keyword">if</span>(<span class="built_in">strstr</span>(line,<span class="string">&quot;libnative-lib.so&quot;</span>))&#123;</span><br><span class="line">            __android_log_print(<span class="number">6</span>,<span class="string">&quot;windaa&quot;</span>,<span class="string">&quot;%s&quot;</span>,line);</span><br><span class="line">            <span class="keyword">if</span>(n==<span class="number">1</span>)&#123;</span><br><span class="line">                start = reinterpret_cast&lt;<span class="type">int</span> *&gt;(strtoul(strtok(line, <span class="string">&quot;-&quot;</span>),<span class="literal">NULL</span>,<span class="number">16</span>));</span><br><span class="line">                end = reinterpret_cast&lt;<span class="type">int</span> *&gt;(strtoul(strtok(<span class="literal">NULL</span>, <span class="string">&quot; &quot;</span>),<span class="literal">NULL</span>,<span class="number">16</span>));</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">else</span>&#123;</span><br><span class="line">                strtok(line,<span class="string">&quot;-&quot;</span>);</span><br><span class="line">                end = reinterpret_cast&lt;<span class="type">int</span> *&gt;(strtoul(strtok(<span class="literal">NULL</span>, <span class="string">&quot; &quot;</span>),<span class="literal">NULL</span>,<span class="number">16</span>));</span><br><span class="line">            &#125;</span><br><span class="line">            n++;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-2-gt-找到got表的位置"><a href="#lt-2-gt-找到got表的位置" class="headerlink" title="&lt;2&gt;找到got表的位置"></a>&lt;2&gt;找到got表的位置</h5><p>我们首先根据段头找到section_header的首地址</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/52.png" alt="image-20220517193556517"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/53.png" alt="image-20220517193556517"></p>
+<p>然后我们遍历这个表就可以找到.got,然后根据got表地址再轮训找到函数地址</p>
+<p>因为这种方法不能在内存中直接找到段头，内存中会抹去段头，所以我们可以通过加载so文件来定位</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/54.png" alt="image-20220517193556517"></p>
+<h5 id="lt-3-gt-定位到节表的地址"><a href="#lt-3-gt-定位到节表的地址" class="headerlink" title="&lt;3&gt;定位到节表的地址"></a>&lt;3&gt;定位到节表的地址</h5><p>然后我们来获得节表的地址：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//读取elf文件</span></span><br><span class="line">    Elf64_Ehdr ehd;</span><br><span class="line">    <span class="type">int</span> <span class="variable">fp</span> <span class="operator">=</span>open(<span class="string">&quot;/data/local/tmp/libnative-lib.so&quot;</span>, O_RDONLY);</span><br><span class="line">    <span class="keyword">if</span>(fp == -<span class="number">1</span>)&#123;</span><br><span class="line">        __android_log_print(<span class="number">4</span>,<span class="string">&quot;windaa&quot;</span>,<span class="string">&quot;%s&quot;</span>,<span class="string">&quot;error&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//读取elf文件的文件头</span></span><br><span class="line">    read(fp,&amp;ehd,sizeof(Elf64_Ehdr));</span><br><span class="line">    <span class="comment">//读取节表的地址</span></span><br><span class="line">    unsigned <span class="type">long</span> <span class="variable">shof</span> <span class="operator">=</span> ehd.e_shoff;</span><br><span class="line">    <span class="comment">//读取节表的数量</span></span><br><span class="line">    <span class="type">int</span> <span class="variable">shnum</span> <span class="operator">=</span> ehd.e_shnum;</span><br><span class="line">    <span class="comment">//读取每个节表的大小</span></span><br><span class="line">    <span class="type">int</span> <span class="variable">shsize</span> <span class="operator">=</span> ehd.e_ehsize;</span><br><span class="line">    <span class="comment">//记录一下str表的偏移，主要是获取后面got的字符串值</span></span><br><span class="line">    <span class="type">int</span> <span class="variable">shstr</span> <span class="operator">=</span> ehd.e_shstrndx;</span><br></pre></td></tr></table></figure>
+
+<p>我们打印一下此事shof的值，验证一下节表的地址</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/55.png" alt="image-20220517193556517"></p>
+<p>这里可以发现成功读取</p>
+<h5 id="lt-4-gt-定位到got表的位置和函数位置"><a href="#lt-4-gt-定位到got表的位置和函数位置" class="headerlink" title="&lt;4&gt;定位到got表的位置和函数位置"></a>&lt;4&gt;定位到got表的位置和函数位置</h5><p>然后我们拿到字符串的偏移值进行定位到got表，再进一步定位到函数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//2.拿到字符串表</span></span><br><span class="line">    Elf64_Shdr shdr;</span><br><span class="line">    <span class="comment">//定位字符串，节表地址加字符串表偏移×节表个数</span></span><br><span class="line">    lseek(fp,shof+shstr*shsize,SEEK_SET);</span><br><span class="line">    <span class="comment">//此时节表就定位到字符串表开头</span></span><br><span class="line">    read(fp,&amp;shdr,shsize);</span><br><span class="line">    <span class="comment">//分配一个字符串表大小</span></span><br><span class="line">    <span class="type">char</span>* strtable = (<span class="type">char</span> *)<span class="built_in">malloc</span>(shdr.sh_size);</span><br><span class="line">    __android_log_print(<span class="number">6</span>,<span class="string">&quot;windaa&quot;</span>,<span class="string">&quot;shdrsize %p&quot;</span>,shdr.sh_offset);</span><br><span class="line">    <span class="comment">//将字符串片指针移动到0x34104上</span></span><br><span class="line">    lseek(fp,shdr.sh_offset,SEEK_SET);</span><br><span class="line">    read(fp,strtable,shdr.sh_size);</span><br><span class="line">    <span class="comment">//将指针移动到节表开头</span></span><br><span class="line">    lseek(fp,shof,SEEK_SET);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//遍历查找到got</span></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i=<span class="number">0</span>;i&lt;shnum;i++)&#123;</span><br><span class="line">        <span class="comment">//从节表开头开始读取字符串，每次读取一个节表</span></span><br><span class="line">        read(fp,&amp;shdr,shsize);</span><br><span class="line">        <span class="comment">//通过节表的索引找到字符串表中对应的值</span></span><br><span class="line">        <span class="keyword">if</span>(<span class="built_in">strcmp</span>(&amp;strtable[shdr.sh_name], <span class="string">&quot;.got&quot;</span>)==<span class="number">0</span>)&#123;</span><br><span class="line">            <span class="comment">//定位到got表的地址</span></span><br><span class="line">            <span class="type">int</span>* saddr = start+shdr.sh_addr/<span class="number">4</span>;</span><br><span class="line">            <span class="comment">//整个got表的大小</span></span><br><span class="line">            <span class="type">int</span> size = shdr.sh_size;</span><br><span class="line">            <span class="comment">//遍历got表中的函数</span></span><br><span class="line">            <span class="keyword">for</span>(<span class="type">int</span> j=<span class="number">0</span>;j&lt;size;j=j+<span class="number">8</span>)&#123;</span><br><span class="line">                <span class="type">uint64_t</span>  value = *(<span class="type">uint64_t</span> *)(saddr + j / <span class="number">4</span>);</span><br><span class="line">                <span class="comment">//找到mywind的地址</span></span><br><span class="line">                <span class="keyword">if</span>(reinterpret_cast&lt;<span class="type">uint64_t</span>&gt;(mywin0) == value)</span><br><span class="line">                &#123;</span><br><span class="line">                    __android_log_print(<span class="number">6</span>,<span class="string">&quot;windaa&quot;</span>,<span class="string">&quot;value %p&quot;</span>,value);</span><br><span class="line">                    <span class="comment">//替换mywind地址</span></span><br><span class="line">                    <span class="comment">// 获取当前内存分页的大小</span></span><br><span class="line">                    <span class="type">uint64_t</span> page_size = getpagesize();</span><br><span class="line">                    <span class="comment">// 获取内存分页的起始地址（需要内存对齐）</span></span><br><span class="line">                    <span class="comment">//page要保护的是函数的绝对地址，而不是相对地址</span></span><br><span class="line">                    <span class="type">uint64_t</span> entry_page_start = (<span class="type">uint64_t</span>)(saddr+j/<span class="number">4</span>) &amp; (~(page_size - <span class="number">1</span>));</span><br><span class="line">                    <span class="comment">// 修改内存属性为可读可写可执行</span></span><br><span class="line">                    <span class="keyword">if</span>(mprotect((<span class="type">uint64_t</span>*)entry_page_start, page_size, PROT_READ | PROT_WRITE | PROT_EXEC) == <span class="number">-1</span>)&#123;</span><br><span class="line">                        __android_log_print(<span class="number">6</span>,<span class="string">&quot;windaa&quot;</span>,<span class="string">&quot;%s&quot;</span>,<span class="string">&quot;mprotect failed&quot;</span>);</span><br><span class="line">                    &#125;</span><br><span class="line">                    value = (<span class="type">uint64_t</span>)mywin1;</span><br><span class="line">                    <span class="comment">//将mywind0函数的地址换成mywind1函数的地址</span></span><br><span class="line">                    <span class="built_in">memcpy</span>((saddr+j/<span class="number">4</span>),&amp;value,<span class="number">16</span>);</span><br><span class="line">                &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/56.png" alt="image-20220517193556517"></p>
+<p>这里我们就可以发现成功的hook</p>
+<p>got hook使用姿势：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">（1）使用/proc/self/maps去获得so模块的加载地址</span><br><span class="line">（2）使用ElfHeader找到Section的首地址，并计算offset和size来获取StringTable</span><br><span class="line">（3）找到got表位置，计算其内存位置，并指针指向got表首地址</span><br><span class="line">（4）遍历got表中的函数，找到要hook的函数，使用mprotect进行hook</span><br><span class="line">（5）将hook的函数地址替换为我们定义的函数地址</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-Unicorn-hook使用"><a href="#5-Unicorn-hook使用" class="headerlink" title="5.Unicorn hook使用"></a>5.Unicorn hook使用</h3><p>这里我们简单了解一下基于unicorn的框架Unidbg的hook使用</p>
+<p>开源地址：<a target="_blank" rel="noopener" href="https://github.com/zhkl0228/unidbg">https://github.com/zhkl0228/unidbg</a></p>
+<p>这里我们直接idea将项目拉取下来，然后等下项目环境配置完成</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/57.png" alt="image-20220517214320334"></p>
+<p>配置完成后，我们直接启动里面的示例代码查看hook效果</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0006/58.png" alt="image-20220517214506632"></p>
+<p>这里unidbg使用了xHook，xHook是一种PLT hook的方式，当然这只是unidbg强大功能其中的一种，也是hook技术中一种，这里就简单介绍到这，后续再详细讲如何使用</p>
+<p>unidbg使用参考博客：<a target="_blank" rel="noopener" href="https://www.qinless.com/670">https://www.qinless.com/670</a></p>
+<h2 id="六、实验总结"><a href="#六、实验总结" class="headerlink" title="六、实验总结"></a>六、实验总结</h2><p>本文从程序加载的原理出发，讲解了当下常用的一些基本的hook方式和手段，后续对其中一些hook方式再次深入讲解，实验的一些样本和代码会上传到知识星球和github，文章参考学了了很多大佬的文章和大佬星球的内容，参考文献放在末尾，有什么问题，就请各位大佬一一指出了。</p>
+<p>github的地址：<a target="_blank" rel="noopener" href="https://github.com/WindXaa">github</a></p>
+<h2 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h2><p>参考书籍：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">参考书目：《程序员的自我修养——链接、装载与库》</span><br></pre></td></tr></table></figure>
+
+<p>GOT和PLT:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">https://www.geek-share.com/detail/2774116640.html</span><br><span class="line">https://www.jianshu.com/p/0ac63c3744dd</span><br><span class="line">https://www.zhihu.com/question/21249496</span><br><span class="line">https://www.codeleading.com/article/37234101170/</span><br></pre></td></tr></table></figure>
+
+<p>hook技术</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">https://zhuanlan.zhihu.com/p/389889716</span><br><span class="line">https://mabin004.github.io/2018/07/31/Mac%E4%B8%8A%E7%BC%96%E8%AF%91Frida/</span><br><span class="line">https://zhuanlan.zhihu.com/p/269441842</span><br><span class="line">https://blog.csdn.net/sdoyuxuan/article/details/78481239</span><br><span class="line">https://www.cnblogs.com/codingmengmeng/p/6046481.html</span><br><span class="line">https://blog.csdn.net/sssssuuuuu666/article/details/78788369</span><br><span class="line">https://www.malwaretech.com/2015/01/inline-hooking-for-programmers-part-1.html</span><br><span class="line">https://juejin.cn/post/6844903993668272141</span><br></pre></td></tr></table></figure>
+
+<p>got&#x2F;plt hook:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">https://www.likecs.com/show-203321775.html</span><br><span class="line">https://www.lmlphp.com/user/65342/article/item/709806/</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/09/bug0006/" title="Android App漏洞之战（6）——（Hook篇）常见的Hook技术详解">http://security-kitchen.com/2023/02/09/bug0006/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/09/bug0005/" rel="prev" title="Android App漏洞之战（5）——（调试篇）调试与反调详解">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（5）——（调试篇）调试与反调详解
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/09/bug0007/" rel="next" title="Android App漏洞之战（7）——（脱壳篇）整体壳脱壳技巧详解">
+      Android App漏洞之战（7）——（脱壳篇）整体壳脱壳技巧详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E7%BC%96%E8%AF%91%E5%8E%9F%E7%90%86"><span class="nav-text">二、编译原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E7%BC%96%E8%AF%91%E8%BF%87%E7%A8%8B"><span class="nav-text">1.编译过程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E9%93%BE%E6%8E%A5%E6%96%B9%E5%BC%8F"><span class="nav-text">（1）链接方式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E9%93%BE%E6%8E%A5%E5%BA%93"><span class="nav-text">（2）链接库</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%8F%AF%E6%89%A7%E8%A1%8C%E6%96%87%E4%BB%B6%EF%BC%88ELF%EF%BC%89"><span class="nav-text">2.可执行文件（ELF）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89ELF%E6%96%87%E4%BB%B6%E7%BB%93%E6%9E%84"><span class="nav-text">（1）ELF文件结构</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89GOT%E5%92%8CPLT"><span class="nav-text">（2）GOT和PLT</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81NDK%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-text">三、NDK基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Android-so%E6%96%87%E4%BB%B6%E7%9A%84%E7%B1%BB%E5%9E%8B"><span class="nav-text">1.Android so文件的类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-so%E6%96%87%E4%BB%B6%E5%8A%A0%E8%BD%BD"><span class="nav-text">2.so文件加载</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%90%84%E7%B1%BBhook%E6%8A%80%E6%9C%AF%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90"><span class="nav-text">四、各类hook技术原理分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Xposed-hook%E6%8A%80%E6%9C%AF"><span class="nav-text">1.Xposed hook技术</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Frida-hook%E6%8A%80%E6%9C%AF"><span class="nav-text">2.Frida hook技术</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-inlinehook-%E6%8A%80%E6%9C%AF"><span class="nav-text">3.inlinehook 技术</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%9F%BA%E6%9C%AC%E5%8E%9F%E7%90%86"><span class="nav-text">（1）基本原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89inlineHook%E7%BB%84%E6%88%90"><span class="nav-text">（2）inlineHook组成</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89inlineHook%E5%AE%9E%E7%8E%B0"><span class="nav-text">（3）inlineHook实现</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89Android-Inline-Hook%E5%92%8CSandHook-%E6%8A%80%E6%9C%AF"><span class="nav-text">（4）Android-Inline-Hook和SandHook 技术</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-PLT-x2F-GOT-hook%E6%8A%80%E6%9C%AF"><span class="nav-text">4.PLT&#x2F;GOT hook技术</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Unicorn-hook%E6%8A%80%E6%9C%AF"><span class="nav-text">5.Unicorn hook技术</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E5%90%84%E7%B1%BBhook%E6%8A%80%E6%9C%AF%E5%AE%9E%E6%93%8D"><span class="nav-text">五、各类hook技术实操</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Xposed-hook%E5%AE%9E%E6%93%8D"><span class="nav-text">1.Xposed hook实操</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E7%8E%AF%E5%A2%83%E5%AE%89%E8%A3%85"><span class="nav-text">（1）环境安装</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89Xposed%E6%8F%92%E4%BB%B6%E7%BC%96%E5%86%99"><span class="nav-text">（2）Xposed插件编写</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-frida-hook%E5%AE%9E%E6%93%8D"><span class="nav-text">2.frida hook实操</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E7%8E%AF%E5%A2%83%E5%AE%89%E8%A3%85-1"><span class="nav-text">（1）环境安装</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89frida%E4%BD%BF%E7%94%A8"><span class="nav-text">（2）frida使用</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-inlinehook%E5%AE%9E%E6%93%8D"><span class="nav-text">3.inlinehook实操</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89Android-lnine-Hook"><span class="nav-text">（1）Android-lnine-Hook</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E7%BC%96%E5%86%99%E7%9B%AE%E6%A0%87%E5%87%BD%E6%95%B0so%E6%96%87%E4%BB%B6"><span class="nav-text">&lt;1&gt;编写目标函数so文件</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E5%AF%BC%E5%85%A5%E6%96%87%E4%BB%B6"><span class="nav-text">&lt;2&gt;导入文件</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E4%BF%AE%E6%94%B9%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6"><span class="nav-text">&lt;3&gt;修改配置文件</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-4-gt-%E7%BC%96%E5%86%99hook%E4%BB%A3%E7%A0%81"><span class="nav-text">&lt;4&gt;编写hook代码</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89SandHook%E5%AE%9E%E6%93%8D"><span class="nav-text">（2）SandHook实操</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E5%AF%BC%E5%85%A5%E6%96%87%E4%BB%B6"><span class="nav-text">&lt;1&gt;导入文件</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E9%85%8D%E7%BD%AE%E7%8E%AF%E5%A2%83"><span class="nav-text">&lt;2&gt;配置环境</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E7%BC%96%E5%86%99hook%E4%BB%A3%E7%A0%81"><span class="nav-text">&lt;3&gt;编写hook代码</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-PLT-x2F-GOT-hook%E5%AE%9E%E6%93%8D"><span class="nav-text">4.PLT&#x2F;GOT hook实操</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E8%8E%B7%E5%BE%97so%E6%A8%A1%E5%9D%97%E7%9A%84%E5%8A%A0%E8%BD%BD%E5%9C%B0%E5%9D%80"><span class="nav-text">&lt;1&gt;获得so模块的加载地址</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E6%89%BE%E5%88%B0got%E8%A1%A8%E7%9A%84%E4%BD%8D%E7%BD%AE"><span class="nav-text">&lt;2&gt;找到got表的位置</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E5%AE%9A%E4%BD%8D%E5%88%B0%E8%8A%82%E8%A1%A8%E7%9A%84%E5%9C%B0%E5%9D%80"><span class="nav-text">&lt;3&gt;定位到节表的地址</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-4-gt-%E5%AE%9A%E4%BD%8D%E5%88%B0got%E8%A1%A8%E7%9A%84%E4%BD%8D%E7%BD%AE%E5%92%8C%E5%87%BD%E6%95%B0%E4%BD%8D%E7%BD%AE"><span class="nav-text">&lt;4&gt;定位到got表的位置和函数位置</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-Unicorn-hook%E4%BD%BF%E7%94%A8"><span class="nav-text">5.Unicorn hook使用</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">六、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

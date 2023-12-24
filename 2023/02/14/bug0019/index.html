@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言最近一直处于忙碌的状态，花了很长一段时间，抽出碎片时间才将这篇帖子写完，本文结合上文的动态加载文章一起学习，本文主要讲述Android中存在的插件化漏洞、签名机制漏洞、解压缩漏洞等，并对一些经典的漏洞进行了复现，本文的相关实验文件由于太多，后面都会上传到知识星球">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（19）——插件化漏洞与解压缩漏洞详解">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/14/bug0019/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言最近一直处于忙碌的状态，花了很长一段时间，抽出碎片时间才将这篇帖子写完，本文结合上文的动态加载文章一起学习，本文主要讲述Android中存在的插件化漏洞、签名机制漏洞、解压缩漏洞等，并对一些经典的漏洞进行了复现，本文的相关实验文件由于太多，后面都会上传到知识星球">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/9.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/13.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/17.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/23.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/24.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/25.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/26.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/27.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/28.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/29.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/53.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/31.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/32.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/30.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/33.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/34.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/35.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/37.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/38.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/39.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/40.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/41.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/47.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/54.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/48.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/49.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/50.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/51.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/52.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/42.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/46.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/44.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/45.png">
+<meta property="article:published_time" content="2023-02-14T01:07:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.113Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/2.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/14/bug0019/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（19）——插件化漏洞与解压缩漏洞详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/14/bug0019/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（19）——插件化漏洞与解压缩漏洞详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-14 09:07:19" itemprop="dateCreated datePublished" datetime="2023-02-14T09:07:19+08:00">2023-02-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>最近一直处于忙碌的状态，花了很长一段时间，抽出碎片时间才将这篇帖子写完，本文结合上文的动态加载文章一起学习，本文主要讲述Android中存在的插件化漏洞、签名机制漏洞、解压缩漏洞等，并对一些经典的漏洞进行了复现，本文的相关实验文件由于太多，后面都会上传到知识星球</p>
+<span id="more"></span>
+<p>本文第二节主要讲述Dex文件结构、Zip文件结构、Android签名机制</p>
+<p>本文第三节主要讲述插件化漏洞和解压缩漏洞的安全场景</p>
+<p>本文第四节主要对插件化漏洞进行讲述</p>
+<p>本文第五节主要对解压缩漏洞进行讲述</p>
+<p>本文第六节主要对Janus漏洞原理进行讲述</p>
+<h2 id="二、基础知识"><a href="#二、基础知识" class="headerlink" title="二、基础知识"></a>二、基础知识</h2><h3 id="1-Dex文件基本结构"><a href="#1-Dex文件基本结构" class="headerlink" title="1.Dex文件基本结构"></a>1.Dex文件基本结构</h3><p>dex文件是anroid虚拟机Dalik运行的一种文件，包含应用程序的全部操作指令以及运行时数据，下面我们看下.class文件和.dex文件的区别：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/2.png"></p>
+<p>我们可以发现dex文件将原来每个文件都有的共有信息合成一体，从而减少了class的冗余</p>
+<p>下面我们进一步详细看dex文件结构</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/3.png"></p>
+<p>我们可以发现dex文件主要由3大部分组成，分别是：<code>文件头、索引区、数据区</code>。其中索引区主要包括字符串、类型、方法、域、方法的索引。数据区主要包括类的定义、数据区、链路数据区</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/4.png"></p>
+<p>上面我们可以看出Dex文件由许多部分组成，其中Dex Header最为重要，因为Dex的其他组成部分，都需要通过Dex Header中的索引才能找到</p>
+<h4 id="（1）Dex-Header"><a href="#（1）Dex-Header" class="headerlink" title="（1）Dex Header"></a>（1）Dex Header</h4><p>dex文件头一般固定为0x70个字节大小，包括标志、版本号、校验码、sha-1签名以及其他一些方法、类的数量和偏移地址等信息。如图所示：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/5.png"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/6.png"></p>
+<p>结合上面的两张图进行对照，下面我们进一步详细的描述dex文件的结构</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/7.png"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/8.png"></p>
+<h4 id="（2）索引区"><a href="#（2）索引区" class="headerlink" title="（2）索引区"></a>（2）索引区</h4><p>dex文件索引区主要是对一些字符串、类型、方法、域、方法的索引，方法可以查找到对应的数据位置</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/9.png" alt="image-20220221104633099"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/10.png" alt="image-20220221103446888"></p>
+<h4 id="（3）数据区"><a href="#（3）数据区" class="headerlink" title="（3）数据区"></a>（3）数据区</h4><p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/11.png" alt="image-20220221105433209"></p>
+<p>数据区一般包括类的定义区、数据区、链接数据区。类的定义区一般存放dex文件中一些类对象的声明，数据区则存放代码原数据，链接数据区一般提供从索引区到数据区的链接映射关系</p>
+<h3 id="2-Zip文件结构"><a href="#2-Zip文件结构" class="headerlink" title="2. Zip文件结构"></a>2. Zip文件结构</h3><p>zip文件是比较常见的压缩文件，我们先来看一下zip文件的基本结构图：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/12.png" alt="image-20220221111055116"></p>
+<p>通过图中我们可以看出，zip文件一般分为三个部分：源文件数据存储区、中心目录区、中心目录结束标识</p>
+<h4 id="（1）源文件数据存储区"><a href="#（1）源文件数据存储区" class="headerlink" title="（1）源文件数据存储区"></a>（1）源文件数据存储区</h4><p>记录着压缩的所有文件的内容信息，其数据组织结构是每个文件都由local file header、file data、data descriptor三部分组成</p>
+<h5 id="lt-1-gt-file-header"><a href="#lt-1-gt-file-header" class="headerlink" title="&lt;1&gt; file header"></a>&lt;1&gt; file header</h5><p>用于标识文件的开始，文件结构如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/13.png" alt="image-20220221111755433"></p>
+<h5 id="lt-2-gt-file-data"><a href="#lt-2-gt-file-data" class="headerlink" title="&lt;2&gt;file data"></a>&lt;2&gt;file data</h5><p>主要存放相应的压缩文件的源数据</p>
+<h5 id="lt-3-gt-data-descriptor"><a href="#lt-3-gt-data-descriptor" class="headerlink" title="&lt;3&gt;data descriptor"></a>&lt;3&gt;data descriptor</h5><p>一般用于标识该文件压缩结束，该结构只有在相应的header中通用标记字段的第３位设为１时才会出现，紧接在压缩文件源数据后。这个数据描述符只用在不能对输出的 ZIP 文件进行检索时使用。例如：在一个不能检索的驱动器（如：磁带机上）上的 ZIP 文件中。如果是磁盘上的ZIP文件一般没有这个数据描述符。</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/14.png" alt="image-20220221112109956"></p>
+<h4 id="（2）中心目录区"><a href="#（2）中心目录区" class="headerlink" title="（2）中心目录区"></a>（2）中心目录区</h4><p>对于待压缩的目录而言，每一个子目录对应一个压缩目录源数据，记录该目录的描述信息。压缩包中所有目录源数据连续存储在整个归档包的最后，这样便于向包中追加新的文件。头部的结构如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/15.png" alt="image-20220221112226588"></p>
+<h4 id="（3）中心目录结束标识"><a href="#（3）中心目录结束标识" class="headerlink" title="（3）中心目录结束标识"></a>（3）中心目录结束标识</h4><p>目录结束标识存在于整个归档包的结尾，用于标记压缩的目录数据的结束，结构如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/16.png" alt="image-20220221112404675"></p>
+<h3 id="3-Android-APK签名机制"><a href="#3-Android-APK签名机制" class="headerlink" title="3.Android APK签名机制"></a>3.Android APK签名机制</h3><p>应用签名主要是避免外部恶意解压、破解或者反编译修改内容，签名的本质是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">认证：Android 平台上运行的每个应用都必须有开发者的签名。在安装应用时，软件包管理器会验证 APK 是否已经过适当签名，安装程序会拒绝没有获得签名就尝试安装应用</span><br><span class="line">验证完整性：软件包管理器在安装应用前会验证应用摘要，如果破解者修改了 apk 里的内容，那么摘要就不再匹配，验证失败</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/17.png" alt="image-20220221141751025"></p>
+<h4 id="（1）应用签名方案类型"><a href="#（1）应用签名方案类型" class="headerlink" title="（1）应用签名方案类型"></a>（1）应用签名方案类型</h4><p>截止到Android12，Android支持三种应用签名方案：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">v1:基于jar签名</span><br><span class="line">v2:提高验证性能&amp;覆盖范围（Android 7.0 Nougat引入）</span><br><span class="line">v3:支持密钥轮换（Android 9.0 Pie引入）</span><br></pre></td></tr></table></figure>
+
+<p>为了提高兼容性，必须按照v1,v2,v3的先后顺序采用签名方案，低版本平台会忽略高版本的签名方案在APK中添加额外数据，具体流程图如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/18.png" alt="image-20220221141751025"></p>
+<h5 id="lt-1-gt-签名方案v1"><a href="#lt-1-gt-签名方案v1" class="headerlink" title="&lt;1&gt;签名方案v1"></a>&lt;1&gt;签名方案v1</h5><p>最基本的签名方案，是基于Jar的签名</p>
+<p>v1签名后会增加META-INF文件夹，其中会有如下三个文件：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>「MANIFEST.MF」</strong></td>
+<td>记录「apk 中每一个文件对应的摘要」（除了 META-INF 文件夹）</td>
+</tr>
+<tr>
+<td><strong>「*.SF」</strong></td>
+<td>记录「MANIFEST.MF 文件的摘要」和「MANIFEST.MF 中每个数据块的摘要」</td>
+</tr>
+<tr>
+<td><strong>「*.RSA」</strong></td>
+<td>包含了「*.SF 文件的签名」和「包含公钥的开发者证书」</td>
+</tr>
+</tbody></table>
+<p>v1签名流程：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/19.png" alt="image-20220221142628252"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）计算每个文件的 SHA-<span class="number">1</span> 摘要，进行 BASE64 编码后写入摘要文件，即 MANIFEST.MF 文件；</span><br><span class="line">（<span class="number">2</span>）计算整个 MANIFEST.MF 文件的 SHA-<span class="number">1</span> 摘要，进行 BASE64 编码后写入签名文件，即*.SF 文件；</span><br><span class="line">（<span class="number">3</span>）计算 MANIFEST.MF 文件中每一块摘要的 SHA-<span class="number">1</span> 摘要，进行 BASE64 编码后写入 签名文件，即*.SF 文件；</span><br><span class="line">（<span class="number">4</span>）计算整个 *.SF 文件的数字签名（先摘要再私钥加密）；</span><br><span class="line">（<span class="number">5</span>）将数字签名和 X<span class="number">.509</span> 开发者数字证书（公钥）写入 *.RSA 文件；</span><br></pre></td></tr></table></figure>
+
+<p>验证流程：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/20.png" alt="image-20220221143020002"></p>
+<p>主要包括验证签名、校验完整性两个步骤：</p>
+<p>步骤1：验证签名步骤</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（1）取出*.RSA 中包含的开发者证书，并校验其合法性</span><br><span class="line">（2）用证书中的公钥解密*.RSA中包含的签名</span><br><span class="line">（3）用证书中的公钥计算*.SF的签名</span><br><span class="line">（4）对比（2）和（3）的签名是否一致</span><br></pre></td></tr></table></figure>
+
+<p>步骤2：验证完整性</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）检查 APK 中包含的所有文件，对应的摘要值与 MANIFEST.MF 文件中记录的值一致</span><br><span class="line">（<span class="number">2</span>）使用证书文件（RSA 文件）检验签名文件（SF 文件）没有被修改过</span><br><span class="line">（<span class="number">3</span>）使用签名文件（SF 文件）检验 MF 文件没有被修改过</span><br></pre></td></tr></table></figure>
+
+<p>上面任何一个步骤验证失败，则整个APK验证失败</p>
+<p>问题：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">覆盖范围不足：Zip 文件中部分内容不在验证范围，例如 META-INF 文件夹；</span><br><span class="line">验证性能差：验证程序必须解压所有压缩的条目，这需要花费更多时间和内存</span><br><span class="line">存在Janus漏洞：恶意开发人员可以通过Janus漏洞去绕过Android 的v1签名验证机制</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-2-gt-签名方案v2"><a href="#lt-2-gt-签名方案v2" class="headerlink" title="&lt;2&gt;签名方案v2"></a>&lt;2&gt;签名方案v2</h5><p>Android7.0 中开始引入了APK签名方案v2，一种全文件签名方案，该方案能够发现对APK的受保护部分进行所有更改，相比v1来说校验速度更快，覆盖的范围也更广。但是考虑到版本兼容的问题，所以一般常见了v1+v2的混合签名模式</p>
+<p>我们由上文知道Zip文件主体分为：<code>源文件数据存储区、中心目录区、中心目录结束标识</code>。EoCD中记录了中央目录的起始位置，在<code>源文件数据存储区</code>和<code>中心目录区</code>插入其他数据不会影响Zip的解压</p>
+<p>因此v2签名后会在<code>源文件数据存储区</code>和<code>中心目录区</code>插入APK 签名分块（APK Signing Block）</p>
+<p>如下图所示。从左到右边，我们定义为区块 1~4</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/21.png" alt="image-20220221151257690"></p>
+<p>v2签名块（APK Signing Block）本身又主要分成三部分:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SignerData（签名者数据）：主要包括签名者的证书，整个APK完整性校验hash，以及一些必要信息</span><br><span class="line">Signature（签名）：开发者对SignerData部分数据的签名数据</span><br><span class="line">PublicKey（公钥）：用于验签的公钥数据</span><br></pre></td></tr></table></figure>
+
+<p><strong>签名流程：</strong></p>
+<p>​		相比v1签名方案，v2签名方案不再以文件为单位计算摘要，而是以1MB为单位将文件拆分为多个连续的快（chunk），每个分区的最后一个快可能会小于1MB。v2签名流程如下：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/22.png" alt="image-20220221151319198"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）对区块 <span class="number">1</span>、<span class="number">3</span>、<span class="number">4</span>，按照 1MB 大小分割为多个块（chunk）</span><br><span class="line">（<span class="number">2</span>）计算每个块的摘要</span><br><span class="line">（<span class="number">3</span>）计算（<span class="number">2</span>）中所有摘要的签名</span><br><span class="line">（<span class="number">4</span>）添加X<span class="number">.509</span>开发者数字证书（公钥）</span><br></pre></td></tr></table></figure>
+
+<p><strong>验证流程：</strong></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/23.png" alt="image-20220221151544009"></p>
+<p>因为v2签名机制是在Android 7.0上版本才支持，因此对于Android 7.0以及以上版本，在安装过程中，如果v2 签名块，则必须走 v2 签名机制，不能绕过。否则降级走 v1 签名机制</p>
+<p>v1 和 v2 签名机制是可以同时存在的，其中对于 v1 和 v2 版本同时存在的时候，v1 版本的 META_INF 的 <code>.SF</code> 文件属性当中有一个 <code>X-Android-APK-Signed</code> 属性：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">X-Android-APK-Signed: 2</span><br></pre></td></tr></table></figure>
+
+<p>v2签名本身的验证过程：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/24.png" alt="image-20220221152811530"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">（1）利用PublicKey解密Signature，得到SignerData的hash明文</span><br><span class="line">（2）计算SignerData的hash值</span><br><span class="line">（3）两个值进行比较，如果相同则认为APK没有被修改过，解析出SignerData中的证书。否则安装失败</span><br><span class="line">（4）如果是第一次安装，直接将证书保存在应用信息中</span><br><span class="line">（5）如果是更新安装，即设备中原来存在这个应用，验证之前的证书是否与本次解析的证书相同。若相同，则安装成功，否则失败</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-3-gt-签名方案v3"><a href="#lt-3-gt-签名方案v3" class="headerlink" title="&lt;3&gt;签名方案v3"></a>&lt;3&gt;签名方案v3</h5><p>Android 9.0中引入了新的签名方式v3，v3签名在v2的基础上，仍然采用检查整个压缩包的校验方式。不同的是在签名部分增可以添加新的证书（Attr块）。在这个新块中，会记录我们之前的签名信息以及新的签名信息， 支持密钥轮换，即以密钥转轮的方案，来做签名的替换和升级。这意味着，只要旧签名证书在手，应用能够在 APK 更新过程中更改其签名密钥。</p>
+<p>v3 签名新增的新块（attr）存储了所有的签名信息，由更小的 Level 块，以链表的形式存储。</p>
+<p><strong>签名流程：</strong></p>
+<p>v3版本签名块也分成同样的三部分，与v2不同的是在SignerData部分，v3新增了attr块，其中是由更小的level块组成。每个level块中可以存储一个证书信息。前一个level块证书验证下一个level证书，以此类推。最后一个level块的证书，要符合SignerData中本身的证书，即用来签名整个APK的公钥所属于的证书。从v2到v3的过渡：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/25.png" alt="image-20220221153113453"></p>
+<p><strong>签名校验：</strong></p>
+<p>Android 的签名方案的升级都需要确保向下兼容。因此，在引入 v3 方案后会根据 APK 签名方案，v3 -&gt; v2 -&gt; v1 依次尝试验证 APK。而较旧的平台会忽略 v3 签名并尝试 v2 签名，最后才去验证 v1 签名。如下图所示：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/26.png" alt="image-20220221152048634"></p>
+<p>注意：对于覆盖安装的情况，签名校验只支持升级而不支持降级。即一个使用 V1 签名的 Apk，可以使用 V2 签名的 Apk 进行覆盖安装，反之则不允许</p>
+<p>v3签名自身的校验：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/27.png" alt="image-20220221153432708"></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">（<span class="number">1</span>）利用PublicKey解密Signature，得到SignerData的hash明文</span><br><span class="line">（<span class="number">2</span>）计算SignerData的hash值</span><br><span class="line">（<span class="number">3</span>）两个值进行比较，如果相同则认为APK没有被修改过，解析出SignerData中的证书。否则安装失败</span><br><span class="line">（<span class="number">4</span>）逐个解析出level块证书并验证，并保存为这个应用的历史证书</span><br><span class="line">（<span class="number">5</span>）如果是第一次安装，直接将证书与历史证书一并保存在应用信息中</span><br><span class="line">（<span class="number">6</span>）如果是更新安装，验证之前的证书与历史证书，是否与本次解析的证书或者历史证书中存在相同的证书，其中任意一个证书符合即可安装</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-4-gt-三种签名的比较和校验时机"><a href="#lt-4-gt-三种签名的比较和校验时机" class="headerlink" title="&lt;4&gt;三种签名的比较和校验时机"></a>&lt;4&gt;三种签名的比较和校验时机</h5><p>v2、v3的比较如下图所示：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/28.png" alt="image-20220221153432708"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">v1签名方案：基于 Jar 的签名方案，但存在的问题：完整性覆盖范围不足 &amp; 验证性能差</span><br><span class="line">v2签名方案：通过条目内容区、中央目录区之间插入APK 签名分块（APK Signing Block）对v1签名进行了优化</span><br><span class="line">v3签名方案：支持密钥轮换，新增的新块（attr）存储了所有的签名信息，对v2签名进行了优化</span><br></pre></td></tr></table></figure>
+
+<p>验证签名的时机主要要了解Android安装应用的方式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">系统应用安装：开机时完成，没有安装界面</span><br><span class="line">网络下载的应用安装：通过市场应用完成，没有安装界面</span><br><span class="line">ADB工具安装：没有安装界面</span><br><span class="line">第三方应用安装：通过packageinstall.apk应用安装，有安装界面</span><br></pre></td></tr></table></figure>
+
+<p>但是其实无论通过哪种方式安装都要通过PackageManagerService来完成安装的主要工作，最终在PMS中会去验证签名信息，如v3验证方式一样</p>
+<h3 id="4-Android动态加载"><a href="#4-Android动态加载" class="headerlink" title="4.Android动态加载"></a>4.Android动态加载</h3><p>Android动态加载总会涉及到插件化、热部署、热修复等，这里我在网上查阅资料后，给大家总结了下动态加载的场景使用和分类：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/1.png" alt="image-20220218172137791"></p>
+<p>动态加载，就是程序运行时，可以加载外部的可执行文件并运行，这样使得我们可以不用安装apk就可以更新应用，针对一些SDK项目，可以加快app新版本的覆盖率、快速修复线上bug。这里运行时是指应用冷启动并开始工作后，外部可以是SD卡，可以是data目录，也可以是jniLib目录，这些可执行文件是没有随着应用一起编译的的</p>
+<p>动态加载的特点：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（1）app在运行的时候，可以通过加载一些本身不存在的文件，来实现一定功能，这种经常应用在app更新的过程中</span><br><span class="line">（2）可执行文件是可以替换的，更换静态资源不属于动态加载</span><br><span class="line">（3）动态加载的核心思想就是动态调用外部的dex文件，Android Apk自带的dex是程序入口，所有功能可以直接从服务器中下载dex来完成</span><br></pre></td></tr></table></figure>
+
+<p>Android动态加载按照工作机制不同，可以分为<code>虚拟机层动态加载</code>和<code>Native层动态加载</code>两大类</p>
+<p>这里由于本文主要讲解动态加载方面漏洞，所以对热更新、热修复等原理就不深究了，大家感兴趣可以下去查阅相关资料，动态加载原理详细可以参考我上一篇帖子：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-271538.htm">Android加壳脱壳学习（1）——动态加载和类加载机制详解</a></p>
+<h2 id="三、插件化和解压缩安全场景和分类"><a href="#三、插件化和解压缩安全场景和分类" class="headerlink" title="三、插件化和解压缩安全场景和分类"></a>三、插件化和解压缩安全场景和分类</h2><h3 id="1-插件化漏洞的安全场景"><a href="#1-插件化漏洞的安全场景" class="headerlink" title="1.插件化漏洞的安全场景"></a>1.插件化漏洞的安全场景</h3><p>前文我们知道了Android的动态加载机制和签名机制，Android插件化机制具有模块解耦性，可以动态升级按序加载，而且当下很多APP都使用了热部署、热修复、插件化等技术都采用了动态加载技术，这样可以实现APP的快速更新，但是也带来一定的安全隐患，使得很多恶意软件能熬过安全检测，来动态加载代码。而执行加载绕过执行漏洞一般与Android 的签名机制密不可分，所以上文我们也很详细的讲解了Android的签名机制。</p>
+<h3 id="2-插件化漏洞的分类"><a href="#2-插件化漏洞的分类" class="headerlink" title="2.插件化漏洞的分类"></a>2.插件化漏洞的分类</h3><p>很多APP通过动态加载一些dex或so文件，但是考虑到存在动态加载的安全性问题，往往会对加载的文件进行签名校验机制，因此我们可以将插件化漏洞分为两类：动态加载漏洞和签名校验绕过漏洞</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/29.png" alt="image-20220307123657260"></p>
+<h3 id="3-解压缩漏洞的安全场景"><a href="#3-解压缩漏洞的安全场景" class="headerlink" title="3.解压缩漏洞的安全场景"></a>3.解压缩漏洞的安全场景</h3><p>Android中经常会涉及到解压缩问题，比如动态加载机制，可能下载了apk&#x2F;zip文件，然后在本地做解压工作，还有就是一些资源在本地占用apk包的太大，就也打包成zip放到服务端，使用的时候再下发。Android在解压zip文件，使用的是ZipInputStream和ZipEntry类，代码比较简单，但是ZipEntry.getName的方法存在的漏洞就是返回的是文件名，并没有对特殊字符处理，linux中<code>../</code>可以命令文件但是这个可以进行穿越上层目录，就会带来一定的安全隐患</p>
+<h3 id="4-签名机制和解压缩漏洞分类"><a href="#4-签名机制和解压缩漏洞分类" class="headerlink" title="4.签名机制和解压缩漏洞分类"></a>4.签名机制和解压缩漏洞分类</h3><p>我们这里列举两个典型的漏洞：如下所示：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/53.png" alt="image-20220308105246647"></p>
+<h2 id="四、插件化漏洞原理分析和复现"><a href="#四、插件化漏洞原理分析和复现" class="headerlink" title="四、插件化漏洞原理分析和复现"></a>四、插件化漏洞原理分析和复现</h2><h3 id="1-动态加载漏洞"><a href="#1-动态加载漏洞" class="headerlink" title="1.动态加载漏洞"></a>1.动态加载漏洞</h3><h4 id="（1）原理分析"><a href="#（1）原理分析" class="headerlink" title="（1）原理分析"></a>（1）原理分析</h4><p>Android系统提供类加载器DexClassLoader，可以在运行时动态加载执行包含的JAR或APK文件内的DEX文件，这样可能导致所加载的Dex文件被恶意应用替换或代码注入，如果不对Dex文件进行签名校验，就可能导致加载的是恶意代码，这样就会进一步造成严重危害</p>
+<h4 id="（2）案例1——动态加载"><a href="#（2）案例1——动态加载" class="headerlink" title="（2）案例1——动态加载"></a>（2）案例1——动态加载</h4><p>案例准备：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">原apk</span><br><span class="line">加载dex</span><br></pre></td></tr></table></figure>
+
+<p>我们先编写一个测试类文件,然后生成dex文件，这里我们在dex文件中只加入字符串信息，我们源apk并未加入签名校验机制</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/31.png" alt="image-20220218192716863"></p>
+<p>我们先将dex文件放到模拟器的sdcard&#x2F;下</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/32.png" alt="image-20211010150449575"></p>
+<p>我们新建一个程序，然后编写主程序的代码，并授权sd读取权限</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Context</span> <span class="variable">appContext</span> <span class="operator">=</span> <span class="built_in">this</span>.getApplication();</span><br><span class="line">testDexClassLoader(appContext,<span class="string">&quot;/sdcard/classes.dex&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&lt;uses-permission android:name=<span class="string">&quot;android.permission.READ_EXTERNAL_STORAGE&quot;</span>/&gt;</span><br><span class="line">&lt;uses-permission android:name=<span class="string">&quot;android.permission.WRITE_EXTERNAL_STORAGE&quot;</span>/&gt;</span><br></pre></td></tr></table></figure>
+
+<p>然后我们编写类加载器代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">testDexClassLoader</span><span class="params">(Context context, String dexfilepath)</span> &#123;</span><br><span class="line">        <span class="comment">//构建文件路径：/data/data/com.emaxple.test02/app_opt_dex，存放优化后的dex,lib库</span></span><br><span class="line">        <span class="type">File</span> <span class="variable">optfile</span> <span class="operator">=</span> context.getDir(<span class="string">&quot;opt_dex&quot;</span>,<span class="number">0</span>);</span><br><span class="line">        <span class="type">File</span> <span class="variable">libfile</span> <span class="operator">=</span> context.getDir(<span class="string">&quot;lib_dex&quot;</span>,<span class="number">0</span>);</span><br><span class="line">        </span><br><span class="line">        <span class="type">ClassLoader</span> <span class="variable">parentclassloader</span> <span class="operator">=</span> MainActivity.class.getClassLoader();</span><br><span class="line">        <span class="type">ClassLoader</span> <span class="variable">tmpclassloader</span> <span class="operator">=</span> context.getClassLoader();</span><br><span class="line">    <span class="comment">//可以为DexClassLoader指定父类加载器</span></span><br><span class="line">        <span class="type">DexClassLoader</span> <span class="variable">dexClassLoader</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">DexClassLoader</span>(dexfilepath,optfile.getAbsolutePath(),libfile.getAbsolutePath(),parentclassloader);</span><br><span class="line">        </span><br><span class="line">        <span class="type">Class</span> <span class="variable">clazz</span> <span class="operator">=</span> <span class="literal">null</span>;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            clazz = dexClassLoader.loadClass(<span class="string">&quot;com.example.test.TestClass&quot;</span>);</span><br><span class="line">        &#125; <span class="keyword">catch</span> (ClassNotFoundException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span>(clazz!=<span class="literal">null</span>)&#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="type">Method</span> <span class="variable">testFuncMethod</span> <span class="operator">=</span> clazz.getDeclaredMethod(<span class="string">&quot;test02&quot;</span>);</span><br><span class="line">                <span class="type">Object</span> <span class="variable">obj</span> <span class="operator">=</span> clazz.newInstance();</span><br><span class="line">                testFuncMethod.invoke(obj);</span><br><span class="line">            &#125; <span class="keyword">catch</span> (NoSuchMethodException e) &#123;</span><br><span class="line">                e.printStackTrace();</span><br><span class="line">            &#125; <span class="keyword">catch</span> (IllegalAccessException e) &#123;</span><br><span class="line">                e.printStackTrace();</span><br><span class="line">            &#125; <span class="keyword">catch</span> (InstantiationException e) &#123;</span><br><span class="line">                e.printStackTrace();</span><br><span class="line">            &#125; <span class="keyword">catch</span> (InvocationTargetException e) &#123;</span><br><span class="line">                e.printStackTrace();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>效果显示：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/30.png" alt="image-20211010150449575"></p>
+<p>这里说明加载成功了，如果我们这里写的是一段恶意代码，这样就会进行攻击，造成破坏</p>
+<h4 id="（3）安全防护"><a href="#（3）安全防护" class="headerlink" title="（3）安全防护"></a>（3）安全防护</h4><p>我们上文的动态加载漏洞，是因为源APK并未对加载的dex文件进行签名校验，从而导致容易导入恶意代码，当然从Android 4.4后加入了<strong>对JAR&#x2F;DEX存放目录文件的user_id 和动态加载JAR&#x2F;DEX的进程的user_id是否一致的判断，如果不一致将抛出异常导致加载失败</strong>，这样就很好的可以防范替换加载的dex文件，进行恶意注入</p>
+<p>解决方案：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（1）将动态加载的DEX/APK文件放置在APK内部或应用私有目录中</span><br><span class="line">（2）使用加密网络协议https进行下载加载的并将其放置在应用私有目录中</span><br><span class="line">（3）对加载的Dex文件进行完整性校验和签名校验</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-签名检验绕过漏洞"><a href="#2-签名检验绕过漏洞" class="headerlink" title="2.签名检验绕过漏洞"></a>2.签名检验绕过漏洞</h3><h4 id="（1）原理分析-1"><a href="#（1）原理分析-1" class="headerlink" title="（1）原理分析"></a>（1）原理分析</h4><p>我们知道一般对APK的验证，主要使用的是签名校验或者MD5校验，使用校验的方式较多。而签名校验一般是处理APK中动态加载或防止二次重打包的问题。</p>
+<p>我们可以将APK中的签名检验机制进一步进行分类：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">java层的签名校验：</span><br><span class="line">原理：这种是开发者在APK java层中加入了签名校验代码，然后通过校验加入文件的MD5值或者SHA1值来对文件进行校验</span><br><span class="line">解决方案：一般这种情况，我们通过定位到APK中的签名代码段，然后进行hook 篡改或者进行修改后重打包就可以进行绕过</span><br><span class="line">so层的签名校验：</span><br><span class="line">原理：由于java可解释语言的原因，所以后来开发者又将签名代码放入so层，从而增加逆向工作的难度</span><br><span class="line">解决方案：这种情况，同样可以使用IDA或GDB进行动态调试确定到签名代码段，然后使用hook 注入技术或静态修改来进行绕过</span><br><span class="line">在线签名校验：</span><br><span class="line">原理：由于前两种方式都是静态校验的方式，这样的安全性仍然较低，后来更多厂商通过服务器在线进行验证，将签名密钥发送然后在so层或java层中进行校验</span><br><span class="line">解决方案：这种情况，我们要使用抓包软件对服务器发送的数据包进行抓取，在成功获取正确密钥后，再去hook对应的签名代码段，从而就可以实现绕过</span><br></pre></td></tr></table></figure>
+
+<p>这一部分完整性保护大家可以详细的参考看雪陌殇大佬的帖子<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-250990.htm">Android应用完整性保护总结</a></p>
+<h4 id="（2）案例2——java层签名绕过"><a href="#（2）案例2——java层签名绕过" class="headerlink" title="（2）案例2——java层签名绕过"></a>（2）案例2——java层签名绕过</h4><p>案例：书旗小说.apk</p>
+<p>我们发现书旗小说在进行重新签名后，再次安装会报错，首先我们AndroidKiller解析APP：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/33.png" alt="image-20211010150449575"></p>
+<p>然后我们开始进行定位，这里我们使用常见的定位点：<strong>signature、killProcess、PageManager</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">signature、killProcess、PageManager 一般是签名代码的关键函数，所以当我们发现这三个函数同时出现，很大程度代表了签名点</span><br></pre></td></tr></table></figure>
+
+<p>我们这里搜索signature或killProcess，我们找到了签名三兄弟：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/34.png" alt="image-20211010150449575"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/35.png" alt="image-20211010150449575"></p>
+<p>分析签名的逻辑，修改后回编译，再安装显示成功</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/37.png" alt="image-20211010150449575"></p>
+<h4 id="（3）案例3——so层签名绕过"><a href="#（3）案例3——so层签名绕过" class="headerlink" title="（3）案例3——so层签名绕过"></a>（3）案例3——so层签名绕过</h4><p>因为so层和java层签名绕过原理相近，只是so层是分析汇编代码，java层分析Smali源码，这里我们参考一个博主的案例，我列举一下</p>
+<p>首先我们根据NDK注册定位到so层的入口点，去查找JNI_Onload函数，然后开始去查找上面的三兄弟</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/38.png" alt="image-20220307134654634"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/39.png" alt="image-20220307134716046"></p>
+<p>这里我们就很好的定位到了代码段，后续就是分析逻辑，修改对应的校验点即可</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/40.png" alt="image-20220307134854959"></p>
+<p>最后就会发现签名成功的绕过</p>
+<h4 id="（4）案例4——在线签名绕过"><a href="#（4）案例4——在线签名绕过" class="headerlink" title="（4）案例4——在线签名绕过"></a>（4）案例4——在线签名绕过</h4><p>在线签名校验主要是抓取校验部分的数据包，然后去查找cookie中的public_key，或者签名Signature值，通过分析数据包后再定位到相应的代码段将值回传到相应的代码段即可</p>
+<p>这里有一个案例大家可以参考<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-270634.htm#%EF%BC%881%EF%BC%89%E6%BC%8F%E6%B4%9E%E6%A1%88%E4%BE%8B">Android APP漏洞之战（6）——HTTP&#x2F;HTTPs通信漏洞详解 </a>中酷狗直播的漏洞实现，这里就是通过在线修改了MD5值，然后使得程序在升级过程中绕过了升级校验，从而成功的注入了恶意病毒</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/41.png" alt="image-20220307134854959"></p>
+<h4 id="（5）安全防护"><a href="#（5）安全防护" class="headerlink" title="（5）安全防护"></a>（5）安全防护</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">（1）java层和so层都可以进一步混淆，来防止字符定位的方法</span><br><span class="line">（2）可以使用反调试技术，来防止动态调试进行定位的方法</span><br><span class="line">（3）可以采用对frida和xposed的检测，来进行防止hook注入</span><br><span class="line">（4）可以尽量采用在线签名，加密传输报文：</span><br><span class="line">客户端将本地程序信息上传到服务端，服务端返回一段校验代码。客户端动态执行代码，返回校验结果</span><br><span class="line">在登陆接口将登录信息在NDK层进行加密，用签名信息进行加密，在登陆接口实现中，进行解密，如果失败不允许登陆</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、Zip解压缩漏洞分析和复现"><a href="#五、Zip解压缩漏洞分析和复现" class="headerlink" title="五、Zip解压缩漏洞分析和复现"></a>五、Zip解压缩漏洞分析和复现</h2><h3 id="1-原理分析"><a href="#1-原理分析" class="headerlink" title="1.原理分析"></a>1.原理分析</h3><p>因为Linux系统中<code>../</code>代表向上级目录跳转，攻击者可以通过构造相应的Zip文件，利用多个’..&#x2F;‘从而改变zip包中某个文件的存放位置，费用该替换掉应用原有的文件，完成目录穿越。这样严重可能会导致任意代码执行漏洞，危害应用用户的设备安全和信息安全</p>
+<p><code>Java</code> 代码在解压 <code>zip</code> 文件时，会使用到 <code>ZipEntry</code> 类的 <code>getName()</code> 方法，如果 <code>zip</code> 文件中包含 <code>../</code> 的字符串，该方法返回值会原样返回。如果没有过滤掉 <code>getName()</code> 返回值中的 <code>../</code> 字符串，继续解压缩操作，就会在其他目录中创建解压的文件</p>
+<h3 id="2-漏洞复现"><a href="#2-漏洞复现" class="headerlink" title="2.漏洞复现"></a>2.漏洞复现</h3><p>样本：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">海豚浏览器 V11.4.18</span><br><span class="line">攻击的so文件：libdolphin.so</span><br><span class="line">Poc攻击代码</span><br></pre></td></tr></table></figure>
+
+<p>我们打开海豚浏览器，并用Fiddler去监控海豚浏览器，Fiddler的配置大家可以参考我之前博客</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/47.png" alt="image-20220307155050126"></p>
+<p>这里我们可以通过抓包去发现主题下载的申请链接，然后我们将主题下载下来，然后解包查看结构，这里我们重命名为zip文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/54.png" alt="image-20220307155156845"></p>
+<p>我们可以发现下载下来的三个资源文件，这也说明海豚浏览器的主题本质是一个zip包</p>
+<p>那么我们如何实现zip目录穿越了，我们是不是可以尝试去构建一个这样的zip包，去替换浏览器的下载包，并重命令去文件名，使得替换浏览器中的关键文件，这里我们就尝试去替换浏览器中的<code>libdolphin.so</code>文件。我们先查看该文件的位置：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/48.png" alt="image-20220307155820156"></p>
+<p>此时我们知道了<code>libdolphin.so</code>文件的存放位置，目录为：<code>/data/data/com.dolphin.browser.express.web/files</code>，这样我们只需要将我们制作的<code>libdolphin.so</code>去替换原文件即可</p>
+<p>我们编写一个<code>libdolphin.so</code>文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/49.png" alt="image-20220307163506122"></p>
+<p>然后我们将生成的so文件重新命名<code>libdolphin.so</code>文件，接下来我们再使用我们的Poc代码更改名称：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> zipfile</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">&#x27;__main__&#x27;</span>:</span><br><span class="line">    ZipPath = <span class="string">&#x27;../../../../../data/data/com.dolphin.browser.express.web/files/libdolphin.so&#x27;</span></span><br><span class="line">    zp = zipfile.ZipFile(<span class="string">&#x27;/root/Desktop/zipAttack/attack.zip&#x27;</span>,<span class="string">&#x27;w&#x27;</span>)</span><br><span class="line">    zp.write(<span class="string">&#x27;/root/Desktop/zipAttack/libdolphin.so&#x27;</span>,ZipPath)</span><br></pre></td></tr></table></figure>
+
+<p>此时我们就成功的构造了我们的攻击文件<code>attack.zip</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/50.png" alt="image-20220307165944152"></p>
+<p>然后我们只需要对海豚浏览器下载主题的包进行劫持替换即可</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/51.png" alt="image-20220307170221500"></p>
+<p>然后我们再次点击手机下载相应主题，发现主题是成功的下载，但是并没有替换成功</p>
+<p>经过验证，我们发现首先正常命名的so文件是可以正常的和主题一起下载成功的</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/52.png" alt="image-20220308102048695"></p>
+<p>然后我们验证，Android中直接重命令文件<code>../../libdolphin.so</code>是可以直接回到上级目录的</p>
+<p>所以综上是因为我测试的Android6.0 已经打了补丁，在进行解压的时候对<code>../</code>这种情况进行了过滤，这样就导致不能进行成功的穿越</p>
+<p>当然这里我们主要是理解zip穿越的原理，这样就可以在很多地方利用这个原理存在的漏洞了</p>
+<h3 id="3-安全防护"><a href="#3-安全防护" class="headerlink" title="3.安全防护"></a>3.安全防护</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">对重要的 zip 压缩包文件进行数字签名校验，校验通过才进行解压</span><br><span class="line">检查 zip 压缩包中使用 ZipEntry.getName() 获取的文件名中是否包含 ../ 或者 .. 字符</span><br><span class="line">更换 zip 解压方式，不使用 ZipEntry.getName() 的方式，使用 ZipInputStream 替代</span><br></pre></td></tr></table></figure>
+
+<p>Google的修复意见：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">InputStream</span> <span class="variable">is</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">InputStream</span>(untrustedFileName);</span><br><span class="line"><span class="type">ZipInputStream</span> <span class="variable">zis</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">ZipInputStream</span>(<span class="keyword">new</span> <span class="title class_">BufferedInputStream</span>(is));</span><br><span class="line"><span class="keyword">while</span>((<span class="type">ZipEntry</span> <span class="variable">ze</span> <span class="operator">=</span> zis.getNextEntry()) != <span class="literal">null</span>) &#123;</span><br><span class="line">  <span class="type">File</span> <span class="variable">f</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">File</span>(DIR, ze.getName());</span><br><span class="line">  <span class="type">String</span> <span class="variable">canonicalPath</span> <span class="operator">=</span> f.getCanonicalPath();</span><br><span class="line">  <span class="keyword">if</span> (!canonicalPath.startsWith(DIR)) &#123;</span><br><span class="line">    <span class="comment">// SecurityException</span></span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// Finish unzipping…</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="六、Janus漏洞分析和复现"><a href="#六、Janus漏洞分析和复现" class="headerlink" title="六、Janus漏洞分析和复现"></a>六、Janus漏洞分析和复现</h2><p>我们上面已经介绍了签名相关的漏洞、和Zip相关的漏洞，下面我们拿2017年的典型漏洞Janus漏洞进行说明，这个漏洞结合了签名和Zip、dex的原理</p>
+<h3 id="1-原理分析-1"><a href="#1-原理分析-1" class="headerlink" title="1.原理分析"></a>1.原理分析</h3><p>相信Janus漏洞原理大家已经十分熟悉了，作为2017年比较重大的Android漏洞，已经有不少的人对其进行了研究和复现，本节只是初步记录下Janus漏洞的学习过程和复现思路（Janus只针对v1签名，v2签名就无效了）</p>
+<p>Android  ART虚拟机在加载并执行一个文件时，会首先判断这个文件的类型。如果这个文件是一个Dex文件，则按Dex的格式加载执行，如果是一个APK文件，则先抽取APK中的dex文件，然后再执行。而判断的依据是通过文件的头部魔术字（Magic Code）来判断。如果文件的头部魔术字是“dex”则判定该文件为Dex文件，如果文件头部的魔术字是“PK”则判定该文件为Apk文件</p>
+<p>然而Android在安装一个APK时会对APK进行签名校验，但却直接默认该APK就是一个Zip文件（并不检查文件头的魔术字），而ZIP格式的文件一般都是从尾部先读取，因此只要ZIP文件尾部的数据结构没有被破坏，并且在读取过程中只要没有碰到非正常的数据，那么整个读取就不会有任何问题</p>
+<p>因此，Android在加载执行代码时，<strong>只认文件头，而安装签名时只认文件尾</strong></p>
+<p>这样我们构造一个APK<strong>，从其头部看是一个Dex文件，从其尾部看，是一个APK文件</strong>，就可以实施攻击。因此Janus漏洞便是将原APK中的classes.dex抽取出来，改造或替换成攻击者想要执行的dex，并将这个dex和原APK文件拼起来，合成一个文件</p>
+<p>当然我们在构造apk时，还需要修改dex文件的字段和zip文件的字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">dex文件修改DexHeader中的file_size，将其调整为合并后文件的大小</span><br><span class="line">zip文件修改尾部Zip,修正[end of central directory record]中[central directory]的偏移和[central directory]中各[local file header]的偏移</span><br></pre></td></tr></table></figure>
+
+<p>漏洞攻击步骤：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">1. 从设备上取出目标应用的APK文件，并构造用于攻击的DEX文件；</span><br><span class="line">2. 将攻击DEX文件与原APK文件简单拼接为一个新的文件；</span><br><span class="line">3. 修复这个合并后的新文件的ZIP格式部分和DEX格式部分，修复原理如图1所示，需要修复文件格式中的关键偏移值和数据长度值；</span><br><span class="line">最后，将修复后的文件，重命名为APK文件，覆盖安装设备上的原应用即可</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-漏洞复现-1"><a href="#2-漏洞复现-1" class="headerlink" title="2.漏洞复现"></a>2.漏洞复现</h3><p>实验样本：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">app-release.apk v1签名的初始样本</span><br><span class="line">classes.dex 修改后的dex文件</span><br><span class="line">out.apk 拼接后的apk文件</span><br><span class="line">janus.py 漏洞拼接代码</span><br></pre></td></tr></table></figure>
+
+<p>首先，我们通过Android Studio编写apk文件，并通过v1签名生成</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/42.png" alt="image-20220221160839695"></p>
+<p>我们在Bulid—&gt;Generate Signed APK中选择通过v1签名来生成apk文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/46.png" alt="image-20220221160944398"></p>
+<p>我们便得到了app-release.apk文件，我们再通过AndroidKiller去修改源文件的代码，然后重新打包</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/44.png" alt="image-20220221161347673"></p>
+<p>然后我们提取出生成的apk文件中的classes.dex文件</p>
+<p>我们是使用<a target="_blank" rel="noopener" href="https://github.com/V-E-O/PoC/blob/master/CVE-2017-13156/janus.py">Janus.py python2版本</a> 和<a target="_blank" rel="noopener" href="https://github.com/xyzAsian/Janus-CVE-2017-13156">java版本</a>，这里我们使用Python版本</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0019/45.png" alt="image-20220221161702364"></p>
+<p>我们就得到拼接的out.apk，我们只需要将这个apk去覆盖原始的apk即可</p>
+<p>问题：</p>
+<p>在尝试了几台Android 6.0的机子后，并未成功复现漏洞，最后推断很大程度是Android 系统打了补丁，所以要复现成功可能只能在未打补丁的系统上才行，不过整体来说是一次很好的学习经历</p>
+<h3 id="3-安全防护-1"><a href="#3-安全防护-1" class="headerlink" title="3.安全防护"></a>3.安全防护</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Android7.0后采用了v2签名机制可以有效的抵制Janus漏洞</span><br><span class="line">现在大部分的手机系统已经打上了Janus漏洞的补丁</span><br></pre></td></tr></table></figure>
+
+<h2 id="七、实验总结"><a href="#七、实验总结" class="headerlink" title="七、实验总结"></a>七、实验总结</h2><p>本文对插件化和解压缩漏洞进行了详细的讲解和漏洞复现，在漏洞复现的过程中，我们发现一个漏洞复现的环境十分重要，因为很多时候曾经的一些典型漏洞都被打了补丁，很难在当下情况复现，当然我们应该更加注重漏洞的原理，从而进行学习，本文可能还存在一些不足之处就请各位大佬指教了。</p>
+<p>本文的相关实验文件存放在知识星球中，本系列的实验文件后面也会逐一上传到知识星球。</p>
+<h2 id="八、参考文献"><a href="#八、参考文献" class="headerlink" title="八、参考文献"></a>八、参考文献</h2><p>dex文件结构：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">https://juejin.cn/post/6844903847647772686</span><br><span class="line">https://www.jianshu.com/p/b79c729f326b</span><br><span class="line">https://www.jianshu.com/p/f7f0a712ddfe</span><br></pre></td></tr></table></figure>
+
+<p>zip文件结构：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">http://blog.sina.com.cn/s/blog_4c3591bd0100zzm6.html</span><br><span class="line">https://thismj.cn/2019/02/14/qian-xi-zip-ge-shi/</span><br></pre></td></tr></table></figure>
+
+<p>Android APK签名机制：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">https://jishuin.proginn.com/p/763bfbd56b8b</span><br><span class="line">https://www.jianshu.com/p/286d2b372334</span><br><span class="line">https://xuanxuanblingbling.github.io/ctf/android/2018/12/30/signature/</span><br></pre></td></tr></table></figure>
+
+<p>插件化漏洞原理：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">https://www.cnblogs.com/goodhacker/p/5152952.html</span><br><span class="line">https://wooyun.js.org/drops/APK%E7%AD%BE%E5%90%8D%E6%A0%A1%E9%AA%8C%E7%BB%95%E8%BF%87.html</span><br><span class="line">https://www.freebuf.com/articles/network/273466.html</span><br><span class="line">https://www.jianshu.com/p/14719d3a508f</span><br><span class="line">https://fiissh.tech/2021/android-fix-zip-path-traversal-vulnerability.html</span><br></pre></td></tr></table></figure>
+
+<p>Janus漏洞原理：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">https://bbs.pediy.com/thread-223539.htm</span><br><span class="line">https://github.com/tea9/CVE-2017-13156-Janus</span><br><span class="line">https://cert.360.cn/warning/detail?id=d5a609929388cfd84c7e9aa8fb943265</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/14/bug0019/" title="Android App漏洞之战（19）——插件化漏洞与解压缩漏洞详解">http://security-kitchen.com/2023/02/14/bug0019/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0018/" rel="prev" title="Android App漏洞之战（18）——Sql漏洞初探">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（18）——Sql漏洞初探
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/14/bug0020/" rel="next" title="Android App漏洞之战（20）——Webview漏洞详解">
+      Android App漏洞之战（20）——Webview漏洞详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-text">二、基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Dex%E6%96%87%E4%BB%B6%E5%9F%BA%E6%9C%AC%E7%BB%93%E6%9E%84"><span class="nav-text">1.Dex文件基本结构</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89Dex-Header"><span class="nav-text">（1）Dex Header</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E7%B4%A2%E5%BC%95%E5%8C%BA"><span class="nav-text">（2）索引区</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E6%95%B0%E6%8D%AE%E5%8C%BA"><span class="nav-text">（3）数据区</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Zip%E6%96%87%E4%BB%B6%E7%BB%93%E6%9E%84"><span class="nav-text">2. Zip文件结构</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BA%90%E6%96%87%E4%BB%B6%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8%E5%8C%BA"><span class="nav-text">（1）源文件数据存储区</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-file-header"><span class="nav-text">&lt;1&gt; file header</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-file-data"><span class="nav-text">&lt;2&gt;file data</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-data-descriptor"><span class="nav-text">&lt;3&gt;data descriptor</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E4%B8%AD%E5%BF%83%E7%9B%AE%E5%BD%95%E5%8C%BA"><span class="nav-text">（2）中心目录区</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E4%B8%AD%E5%BF%83%E7%9B%AE%E5%BD%95%E7%BB%93%E6%9D%9F%E6%A0%87%E8%AF%86"><span class="nav-text">（3）中心目录结束标识</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Android-APK%E7%AD%BE%E5%90%8D%E6%9C%BA%E5%88%B6"><span class="nav-text">3.Android APK签名机制</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%BA%94%E7%94%A8%E7%AD%BE%E5%90%8D%E6%96%B9%E6%A1%88%E7%B1%BB%E5%9E%8B"><span class="nav-text">（1）应用签名方案类型</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-%E7%AD%BE%E5%90%8D%E6%96%B9%E6%A1%88v1"><span class="nav-text">&lt;1&gt;签名方案v1</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-%E7%AD%BE%E5%90%8D%E6%96%B9%E6%A1%88v2"><span class="nav-text">&lt;2&gt;签名方案v2</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-%E7%AD%BE%E5%90%8D%E6%96%B9%E6%A1%88v3"><span class="nav-text">&lt;3&gt;签名方案v3</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-4-gt-%E4%B8%89%E7%A7%8D%E7%AD%BE%E5%90%8D%E7%9A%84%E6%AF%94%E8%BE%83%E5%92%8C%E6%A0%A1%E9%AA%8C%E6%97%B6%E6%9C%BA"><span class="nav-text">&lt;4&gt;三种签名的比较和校验时机</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-Android%E5%8A%A8%E6%80%81%E5%8A%A0%E8%BD%BD"><span class="nav-text">4.Android动态加载</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E6%8F%92%E4%BB%B6%E5%8C%96%E5%92%8C%E8%A7%A3%E5%8E%8B%E7%BC%A9%E5%AE%89%E5%85%A8%E5%9C%BA%E6%99%AF%E5%92%8C%E5%88%86%E7%B1%BB"><span class="nav-text">三、插件化和解压缩安全场景和分类</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%8F%92%E4%BB%B6%E5%8C%96%E6%BC%8F%E6%B4%9E%E7%9A%84%E5%AE%89%E5%85%A8%E5%9C%BA%E6%99%AF"><span class="nav-text">1.插件化漏洞的安全场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%8F%92%E4%BB%B6%E5%8C%96%E6%BC%8F%E6%B4%9E%E7%9A%84%E5%88%86%E7%B1%BB"><span class="nav-text">2.插件化漏洞的分类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E8%A7%A3%E5%8E%8B%E7%BC%A9%E6%BC%8F%E6%B4%9E%E7%9A%84%E5%AE%89%E5%85%A8%E5%9C%BA%E6%99%AF"><span class="nav-text">3.解压缩漏洞的安全场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E7%AD%BE%E5%90%8D%E6%9C%BA%E5%88%B6%E5%92%8C%E8%A7%A3%E5%8E%8B%E7%BC%A9%E6%BC%8F%E6%B4%9E%E5%88%86%E7%B1%BB"><span class="nav-text">4.签名机制和解压缩漏洞分类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E6%8F%92%E4%BB%B6%E5%8C%96%E6%BC%8F%E6%B4%9E%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">四、插件化漏洞原理分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%8A%A8%E6%80%81%E5%8A%A0%E8%BD%BD%E6%BC%8F%E6%B4%9E"><span class="nav-text">1.动态加载漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90"><span class="nav-text">（1）原理分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%A1%88%E4%BE%8B1%E2%80%94%E2%80%94%E5%8A%A8%E6%80%81%E5%8A%A0%E8%BD%BD"><span class="nav-text">（2）案例1——动态加载</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">（3）安全防护</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E7%AD%BE%E5%90%8D%E6%A3%80%E9%AA%8C%E7%BB%95%E8%BF%87%E6%BC%8F%E6%B4%9E"><span class="nav-text">2.签名检验绕过漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90-1"><span class="nav-text">（1）原理分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%A1%88%E4%BE%8B2%E2%80%94%E2%80%94java%E5%B1%82%E7%AD%BE%E5%90%8D%E7%BB%95%E8%BF%87"><span class="nav-text">（2）案例2——java层签名绕过</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E6%A1%88%E4%BE%8B3%E2%80%94%E2%80%94so%E5%B1%82%E7%AD%BE%E5%90%8D%E7%BB%95%E8%BF%87"><span class="nav-text">（3）案例3——so层签名绕过</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E6%A1%88%E4%BE%8B4%E2%80%94%E2%80%94%E5%9C%A8%E7%BA%BF%E7%AD%BE%E5%90%8D%E7%BB%95%E8%BF%87"><span class="nav-text">（4）案例4——在线签名绕过</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%885%EF%BC%89%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">（5）安全防护</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81Zip%E8%A7%A3%E5%8E%8B%E7%BC%A9%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">五、Zip解压缩漏洞分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90"><span class="nav-text">1.原理分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0"><span class="nav-text">2.漏洞复现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4"><span class="nav-text">3.安全防护</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81Janus%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90%E5%92%8C%E5%A4%8D%E7%8E%B0"><span class="nav-text">六、Janus漏洞分析和复现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%8E%9F%E7%90%86%E5%88%86%E6%9E%90-1"><span class="nav-text">1.原理分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0-1"><span class="nav-text">2.漏洞复现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%AE%89%E5%85%A8%E9%98%B2%E6%8A%A4-1"><span class="nav-text">3.安全防护</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">七、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">八、参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

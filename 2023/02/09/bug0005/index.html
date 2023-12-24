@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="[TOC] 一、前言撰写了好长时间，终于写完这篇帖子了，这主要是为了解决当下APP中存在的一些常见调试检测策略，前面系列的文章介绍了很多Android APP中漏洞挖掘的手段和原理，但是面对当下防护手段如此复杂的APP，不掌握一些基本的逆向技巧，我们就更别谈进行APP漏洞挖掘了，本文将开始总结了当下APP的一些安全防护手段和技巧，帮助大家更加高效的进行漏洞挖掘。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android App漏洞之战（5）——（调试篇）调试与反调详解">
+<meta property="og:url" content="http://security-kitchen.com/2023/02/09/bug0005/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="[TOC] 一、前言撰写了好长时间，终于写完这篇帖子了，这主要是为了解决当下APP中存在的一些常见调试检测策略，前面系列的文章介绍了很多Android APP中漏洞挖掘的手段和原理，但是面对当下防护手段如此复杂的APP，不掌握一些基本的逆向技巧，我们就更别谈进行APP漏洞挖掘了，本文将开始总结了当下APP的一些安全防护手段和技巧，帮助大家更加高效的进行漏洞挖掘。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/1.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/2.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/3.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/4.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/5.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/6.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/22.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/23.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/24.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/25.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/26.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/27.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/28.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/29.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/30.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/31.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/32.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/33.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/89.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/90.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/91.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/92.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/93.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/94.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/95.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/96.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/97.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/7.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/8.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/9.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/10.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/11.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/12.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/13.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/14.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/15.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/16.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/17.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/18.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/19.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/20.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/21.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/34.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/35.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/36.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/37.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/38.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/39.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/40.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/41.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/42.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/43.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/44.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/45.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/46.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/47.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/48.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/49.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/50.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/51.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/52.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/53.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/54.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/55.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/56.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/57.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/58.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/59.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/60.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/61.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/62.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/63.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/64.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/65.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/66.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/67.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/68.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/69.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/70.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/71.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/72.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/73.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/74.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/75.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/76.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/77.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/78.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/79.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/80.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/81.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/82.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/83.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/84.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/85.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/86.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/87.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/88.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/98.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/99.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/100.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/101.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/102.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/103.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/104.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/105.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/106.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/107.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/108.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/109.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/110.png">
+<meta property="og:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/111.png">
+<meta property="article:published_time" content="2023-02-09T01:46:19.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.109Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="漏洞挖掘">
+<meta property="article:tag" content="工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2023/02/09/bug0005/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android App漏洞之战（5）——（调试篇）调试与反调详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2023/02/09/bug0005/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android App漏洞之战（5）——（调试篇）调试与反调详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-02-09 09:46:19" itemprop="dateCreated datePublished" datetime="2023-02-09T09:46:19+08:00">2023-02-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android-APP%E6%BC%8F%E6%B4%9E%E4%B9%8B%E6%88%98/" itemprop="url" rel="index"><span itemprop="name">Android APP漏洞之战</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>[TOC]</p>
+<h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>撰写了好长时间，终于写完这篇帖子了，这主要是为了解决当下APP中存在的一些常见调试检测策略，前面系列的文章介绍了很多Android APP中漏洞挖掘的手段和原理，但是面对当下防护手段如此复杂的APP，不掌握一些基本的逆向技巧，我们就更别谈进行APP漏洞挖掘了，本文将开始总结了当下APP的一些安全防护手段和技巧，帮助大家更加高效的进行漏洞挖掘。</p>
+<span id="more"></span>
+<p>本文通过收集了大量的资料，参考了看雪上众多大佬的帖子，肉丝大佬的知识星球等，本文的知识结构为：</p>
+<p>本文第二节主要将检测防护手段的原理</p>
+<p>本文第三节主要介绍当下APP中的动静态防护策略</p>
+<p>本文第四节主要讲当下其他常见的反调试策略绕过方式</p>
+<p>本文第五节将反调试技巧与案例结合，并列举了APP漏洞挖掘实例</p>
+<h2 id="二、相关介绍"><a href="#二、相关介绍" class="headerlink" title="二、相关介绍"></a>二、相关介绍</h2><h3 id="1-模拟器检测"><a href="#1-模拟器检测" class="headerlink" title="1.模拟器检测"></a>1.模拟器检测</h3><p>模拟器是当时比较流行的工具，可以帮助工作人员更加便捷的进行调试工作。而随着APP安全防护技术的进一步发展，模拟器检测技术不断进行完善，使得很多APP不能在模拟器上运行，下面本文收集了当下模拟器检测技术的情况，并在后面拿案例进行讲解</p>
+<p>模拟器检测可以参考:</p>
+<p>看雪sossai大佬的文章：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-255672.htm">Android模拟器检测体系梳理 </a></p>
+<p>看雪大佬Vancir大佬的文章：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-225717.htm">检测Android虚拟机的方法和代码实现 </a></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/1.png"></p>
+<p>后面我们将拿一个具体案例来看看android模拟器检测如何具体实现</p>
+<h3 id="2-Android动静态调试方法"><a href="#2-Android动静态调试方法" class="headerlink" title="2.Android动静态调试方法"></a>2.Android动静态调试方法</h3><h4 id="（1）静态分析"><a href="#（1）静态分析" class="headerlink" title="（1）静态分析"></a>（1）静态分析</h4><p>Android上一般使用<code>GDA+jadx-gui+AndroidKiller</code>对APP java层进行静态分析，一般使用<code>ida</code>对so层进行静态分析</p>
+<p><strong>java层静态分析：</strong></p>
+<p>我们拿到一个APP，一般先使用GDA查看是够有加壳，如果有加壳，我们则需要对其进行脱壳</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/2.png" alt="image-20220424113633701"></p>
+<p>针对于加壳的类型一般分为dex加固和so层加固，我们大多时候只需要解决dex加壳问题，就可以满足我们的一般需求了</p>
+<p>dex加壳一般分为三类：<code>dex整体加壳、函数抽取、dex2c/VMP</code></p>
+<p>dex脱壳解决方案：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">dex整体加固：这种方法往往通过动态加载的形式，交换Application的执行，一般我们可以通过hook方法，找到dex_file的起始地址或大小，进行脱取，也可以通过定制Room方法对关键的函数进行插桩，代表有fdex2、Frida_Dump</span><br><span class="line">函数抽取：这种方法往往通过将函数代码抽取放入so文件中，执行时再从so文件读取还原，我们一般可以通过被动调用延时Dump的方法，或主动调用ArtMethod中invoke函数，触发每一个函数，然后进行回填，代表有youpk和fart</span><br><span class="line">VMP：通过定制的指令集进行解释，这时往往需要手工分析，找到指令的映射表，然后进行一步步解释</span><br></pre></td></tr></table></figure>
+
+<p>我们脱壳后，就进入静态分析的流程</p>
+<p>首先我们需要找到函数的入口点函数：<img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/3.png" alt="image-20220424171201780"></p>
+<p>我们在AndroidManifest里面找打Main的Activity，或通过AndroidKiller直接找到</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/4.png" alt="image-20220424171232376"></p>
+<p>然后我们进入对应的入口函数，结合Activity的生命周期，执行流程一步步的分析源码</p>
+<p>我们进行静态分析时，可以进行字符串定位来快速定位到我们需要定位的代码段</p>
+<p>使用<code>GDA+jadx-gui</code>可以很好的查看静态代码段，使用<code>AndroidKiller</code>可以对代码进行修改，然后重新打包签名，当然后面需要面临的就是进一步的绕过签名机制</p>
+<p><strong>so层静态分析：</strong></p>
+<p>分析java层代码时，会可能碰到native函数，这样我们的分析就自然从java层过渡到了so层</p>
+<p>首先我们确定jni函数对应的so文件</p>
+<p>静态注册和动态注册的区别：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Java_完整包名_类名_方法名：静态注册</span><br><span class="line">JNI_Onload:             动态注册</span><br></pre></td></tr></table></figure>
+
+<p>动态注册加载so文件的两种形式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">动态注册加载so文件两种方式：</span><br><span class="line">	(1)System.loadLibrary(&quot;native-lib&quot;);</span><br><span class="line">	(2)System.load(so文件绝对路径)</span><br></pre></td></tr></table></figure>
+
+<p>所以我们可以直接搜<code>JNI_Onload</code>来判断是否为动态注册</p>
+<p>动态注册：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/5.png" alt="image-20220424132743389"></p>
+<p>静态注册：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/6.png" alt="image-20220424132820819"></p>
+<p>然后我们可以进一步进行分析so层中的代码段，下面是一些ida的快捷指令：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">(1)  空格键：切换文本视图与图表视图</span><br><span class="line">(2)  ESC：返回上一个操作地址</span><br><span class="line">(3)  G：搜索地址和符号</span><br><span class="line">(4)  N：对符号进行重命名</span><br><span class="line">(5)  冒号键：常规注释</span><br><span class="line">(6)  分号键：可重复注释</span><br><span class="line">(7)  Alt+M：添加标签</span><br><span class="line">(8)  Ctrl+M:查看标签</span><br><span class="line">(9)  Ctrl+S:查看节的信息</span><br><span class="line">(10)  X：查看交叉应用</span><br><span class="line">(11)  F5:查看伪代码</span><br><span class="line">(12)  Alt+T:搜索文本</span><br><span class="line">(13)  Alt+B:搜索十六进制</span><br><span class="line">(14)  代码数据切换</span><br><span class="line">	C--&gt;代码/D--&gt;数据/A--&gt;ascii字符串/U--&gt;解析成未定义的内容</span><br><span class="line">(15)  拷贝伪C代码到反汇编窗口:右键&gt;copy to -assembly	</span><br><span class="line">(16) IDA可以修改so的hex操作数来修改so文件，右键点击“edit”进行修改，</span><br><span class="line">       然后右键点击“edit-patchrogram”提交</span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）静态分析的防护策略"><a href="#（2）静态分析的防护策略" class="headerlink" title="（2）静态分析的防护策略"></a>（2）静态分析的防护策略</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">java层：dex加壳技术、混淆技术</span><br><span class="line">so层：so加壳技术、ollvm高级混淆技术</span><br></pre></td></tr></table></figure>
+
+<h4 id="（3）动态分析"><a href="#（3）动态分析" class="headerlink" title="（3）动态分析"></a>（3）动态分析</h4><p>Android中动态分析，java层我们一般使用<code>Android Studio</code>和<code>Jeb</code>两类工具进行动态调试，so层我们会使用<code>IDA</code>和<code>GDB</code>来完成动态调试，后面我们会拿一些实质的案例来进行一步步的操作</p>
+<h5 id="lt-1-gt-AndroidStudio动态调试"><a href="#lt-1-gt-AndroidStudio动态调试" class="headerlink" title="&lt;1&gt;AndroidStudio动态调试"></a>&lt;1&gt;AndroidStudio动态调试</h5><p>首先使用AndroidKiller对apk进行反编译，查看其反编译后的工程</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/22.png" alt="image-20220424171303034"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/23.png" alt="image-20220424152342814"></p>
+<p>把project文件导入Android stdio</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/24.png" alt="image-20220424152413762"></p>
+<p>问题：导入报错，显示没有setting.zip，可能是Android stdio版本的问题，这里使用的是4.0版本</p>
+<p>安装插件smalidea：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/25.png" alt="image-20220424152413762"></p>
+<p>配置Android stdio</p>
+<p>1）给smail代码一个root权限</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/26.png" alt="image-20220424152707730"></p>
+<p>2）配置项目的jdk, 已经配置后可以不用</p>
+<p>3）配置远程调试</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/27.png" alt="image-20220424152707730"></p>
+<p>添加远程调试remote</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/28.png" alt="image-20220424152821854"></p>
+<p>4）建立连接</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb shell ps  显示当前的注册信息（adb shell ps | find）| grep</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/29.png" alt="image-20220424152859681"></p>
+<p>查找到当前的进程PID</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/30.png" alt="image-20220424152859681"></p>
+<p>开始转发端口 </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb forward tcp:8700 jdwp:3924</span><br></pre></td></tr></table></figure>
+
+<p>或者将程序挂起：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb shell am start -D -n My.XuanAo.LiuYao/.main（包名加进程）</span><br></pre></td></tr></table></figure>
+
+<p>点击调试:</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/31.png" alt="image-20220424153053943"></p>
+<p>5）开始调试</p>
+<p>下断点</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/32.png" alt="image-20220424153053943"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">注意：Android stdio不能下断点，这是由于Android stdio 版本过高引起的</span><br></pre></td></tr></table></figure>
+
+<p>在虚拟机中运行APP,触发断点，既可以进行调试</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/33.png" alt="image-20220424153053943"></p>
+<h5 id="lt-2-gt-IDA动态调试步骤"><a href="#lt-2-gt-IDA动态调试步骤" class="headerlink" title="&lt;2&gt;IDA动态调试步骤"></a>&lt;2&gt;IDA动态调试步骤</h5><figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">1.</span>创建模拟器（最好使用真机）</span><br><span class="line"><span class="number">2.</span>在<span class="variable constant_">IDA</span>里面找到<span class="title function_">android_server</span>(dbgsrv目录)</span><br><span class="line"><span class="number">3.</span>把android_server文件放到手机/data/local/tmp</span><br><span class="line">	adb push 文件名 /data/local/tmp</span><br><span class="line"><span class="number">4.</span>打开一个cmd窗口：运行android_server</span><br><span class="line">	<span class="number">1</span>)adb shell 连接手机</span><br><span class="line">	<span class="number">2</span>）给一个最高权限：su</span><br><span class="line">	<span class="number">3</span>）来到/data/local/<span class="attr">tmp</span>:cd /data/local/tmp</span><br><span class="line">	<span class="number">4</span>)给androi_server一个最高的权限：chmod <span class="number">777</span> android_server</span><br><span class="line">	<span class="number">5</span>)查看android_server是否拥有权限：ls -l</span><br><span class="line">	<span class="number">6</span>)运行<span class="attr">andorid_server</span>: ./android_server（端口号默认是：<span class="number">23946</span>）</span><br><span class="line">	补充：运行andorid_server并且修改端口号：./android_server -p端口号</span><br><span class="line"><span class="number">5.</span>端口转发：</span><br><span class="line">	adb forward <span class="attr">tcp</span>:端口号 <span class="attr">tcp</span>:端口号（之前转发的端口号是什么，这里就是什么） </span><br><span class="line"><span class="number">6.</span>打开<span class="variable constant_">DDMS</span>：观察程序的端口号</span><br><span class="line"><span class="number">7.</span>挂起程序：</span><br><span class="line">	adb shell am start -D -n 包名/类名</span><br><span class="line">	例子：adb shell am start -D -n com.<span class="property">example</span>.<span class="property">javandk1</span>/.<span class="property">MainActivity</span></span><br><span class="line">	补充：此时观察<span class="variable constant_">DDMS</span>，被调试的程序前面有一个红色的虫子；</span><br><span class="line"><span class="number">8.</span><span class="variable constant_">IDA</span>里面勾选三项</span><br><span class="line">	<span class="number">1</span>）打开ida,选择<span class="keyword">debugger</span> -第二项-<span class="title class_">Remote</span> <span class="title class_">ARMlinux</span>（第四项）</span><br><span class="line">	<span class="number">2</span>）添加hostname和portt：</span><br><span class="line">		hostname：主机号（默认<span class="number">127.0</span><span class="number">.0</span><span class="number">.1</span>）</span><br><span class="line">		port：端口号（之前android_server运行时的端口号或者端口转发的端口号）</span><br><span class="line">	<span class="number">3</span>）出来进程列表：选择要调试的程序（可以ctrl+f，搜索包名）</span><br><span class="line">	<span class="number">4</span>）进来后，勾选三项：</span><br><span class="line">	<span class="title class_">Suspend</span> on process entry point程序入口点 断下</span><br><span class="line">	<span class="title class_">Suspend</span> on thread start/exit线程的退出或启动 断下</span><br><span class="line">	<span class="title class_">Suspend</span> on library load/unload库的加载和卸载 断下</span><br><span class="line">补充：可以直接在这里<span class="variable constant_">F9</span>（左上角有一个三角形）运行程序，然后放手；</span><br><span class="line">     也可以，直接执行第九步，然后<span class="variable constant_">IDA</span>运行程序</span><br><span class="line"><span class="number">9.</span>挂载、释放（放手）</span><br><span class="line">	jdb -connect com.<span class="property">sun</span>.<span class="property">jdi</span>.<span class="property">SocketAttach</span>:hostname=<span class="number">127.0</span><span class="number">.0</span><span class="number">.1</span>,port=端口号(是ddms里显示的端口<span class="number">8600</span>)</span><br><span class="line">	补充：此时观察<span class="variable constant_">DDMS</span>，被调试的程序前面有一个绿色的虫子；</span><br></pre></td></tr></table></figure>
+
+<h5 id="lt-3-gt-GDB动态调试"><a href="#lt-3-gt-GDB动态调试" class="headerlink" title="&lt;3&gt;GDB动态调试"></a>&lt;3&gt;GDB动态调试</h5><p>GDB动态调试推荐使用可视化工具<code>HyperPwn</code>,GDB的命令操作手册如下：</p>
+<p><a target="_blank" rel="noopener" href="https://lldb.llvm.org/use/map.html">GDB命令操作手册</a></p>
+<p>首先，将gdbserver进行启动</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/89.png" alt="image-20220424161910689"></p>
+<p>先使用objection来观察要调试的so文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/90.png" alt="image-20220424162051255"></p>
+<p>例如，我们要调试libcamera_client.so</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/91.png" alt="image-20220424162051255"></p>
+<p>我们此时查看目标进程的状态：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/92.png" alt="image-20220424162051255"></p>
+<p>此时我们就可以使用gdb去调试端口</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./gdbserver 0.0.0.0:23946 --attach 11021</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/93.png" alt="image-20220424162051255"></p>
+<p>我们再打开hyper</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/94.png" alt="image-20220424162051255"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gdb-multiach  </span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/95.png" alt="image-20220424162051255"></p>
+<p>然后我们设置</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">set arch arm</span><br><span class="line">set arm fallback-mode thumb</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/96.png" alt="image-20220424162051255"></p>
+<p>然后我们远程连接</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">target remote 172.31.99.61:23946</span><br></pre></td></tr></table></figure>
+
+<p>ip是我们手机的ip地址，端口号是我们gdbserver转发的端口号，这里我们要注意我们的gdbserver不能关闭</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/97.png" alt="image-20220424162051255"></p>
+<p>这样就进入了我们的调试界面</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">F8下一跳</span><br><span class="line">F7步入</span><br><span class="line">C 进入下一个断点</span><br><span class="line">ctrl+shift+pageup 显示上一行状态</span><br><span class="line">ctrl+shift+pagedown 显示下一行状态</span><br><span class="line">如果没有调用，我们可以使用frida主动调用</span><br></pre></td></tr></table></figure>
+
+<h4 id="（4）动态分析的防护策略"><a href="#（4）动态分析的防护策略" class="headerlink" title="（4）动态分析的防护策略"></a>（4）动态分析的防护策略</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">java层：</span><br><span class="line">	android.debuggable=false</span><br><span class="line">so层：</span><br><span class="line">	通过检测ptrace值的变化</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-Root检测"><a href="#3-Root检测" class="headerlink" title="3.Root检测"></a>3.Root检测</h3><p>root检测逐渐成为现在的APP防护的一种方式，而我们要进行hook等更多操作，必须要获得root权限</p>
+<p>root检测目前一般分为下面的一些方法：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/7.png" alt="image-20220424141415510"></p>
+<h4 id="（1-检测目录中是否含su"><a href="#（1-检测目录中是否含su" class="headerlink" title="（1)  检测目录中是否含su"></a>（1)  检测目录中是否含su</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">          String[] stringArray = <span class="keyword">new</span> <span class="title class_">String</span>[]&#123;<span class="string">&quot;/system/app/Superuser.apk&quot;</span>,<span class="string">&quot;/sbin/su&quot;</span>,<span class="string">&quot;/system/bin/su&quot;</span>,<span class="string">&quot;/system/xbin/su&quot;</span>,<span class="string">&quot;/data/local/xbin/su&quot;</span>,<span class="string">&quot;/data/local/bin/su&quot;</span>,<span class="string">&quot;/system/sd/xbin/su&quot;</span>,<span class="string">&quot;/system/bin/failsafe/su&quot;</span>,<span class="string">&quot;/data/local/su&quot;</span>,<span class="string">&quot;/su/bin/su&quot;</span>&#125;;</span><br><span class="line">          <span class="comment">//遍历数组路径</span></span><br><span class="line">          <span class="comment">//执行su</span></span><br><span class="line">           String[] stringArray1 = <span class="keyword">new</span> <span class="title class_">String</span>[]&#123;<span class="string">&quot;/system/xbin/which&quot;</span>,<span class="string">&quot;su&quot;</span>&#125;;</span><br><span class="line">           process = Runtime.getRuntime().exec(stringArray1);</span><br><span class="line"><span class="comment">//遍历到说明含root，遍历不到说明为含root</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（2）检测系统是否为测试版"><a href="#（2）检测系统是否为测试版" class="headerlink" title="（2）检测系统是否为测试版"></a>（2）检测系统是否为测试版</h4><p>编译Android源码系统时，如果我们编译生成的是测试版，是自动拥有root权限的，这时我们将su修改名字就可以绕过root检测了</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cat /system/build.prop | grep ro.build.tags</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/8.png" alt="image-20220424140832763"></p>
+<p>这返回结果“test-keys”，代表此系统是测试版</p>
+<p>返回结果“release-keys”，代表此系统是正式版</p>
+<h4 id="（3）使用which命令查看是否有su"><a href="#（3）使用which命令查看是否有su" class="headerlink" title="（3）使用which命令查看是否有su"></a>（3）使用which命令查看是否有su</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">which su</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/9.png" alt="image-20220424141214287"></p>
+<h4 id="（4）检测Magisk或Superuser-apk"><a href="#（4）检测Magisk或Superuser-apk" class="headerlink" title="（4）检测Magisk或Superuser.apk"></a>（4）检测Magisk或Superuser.apk</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">File</span> <span class="variable">file</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">File</span>(<span class="string">&quot;/system/app/Superuser.apk&quot;</span>);</span><br><span class="line">    <span class="keyword">if</span> (file.exists()) </span><br><span class="line">    &#123;</span><br><span class="line">        Log.i(LOG_TAG, <span class="string">&quot;/system/app/Superuser.apk exist&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"><span class="comment">//检测Magisk 是否安装包名为 com.topjohnwu.magisk</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="（5）执行Busybox"><a href="#（5）执行Busybox" class="headerlink" title="（5）执行Busybox"></a>（5）执行Busybox</h4><p>设备被root，很有可能被安装busybox</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">which busybox</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/10.png" alt="image-20220424142340018"></p>
+<p>执行busybox:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">String[] strCmd = <span class="keyword">new</span> <span class="title class_">String</span>[] &#123;<span class="string">&quot;busybox&quot;</span>,<span class="string">&quot;df&quot;</span>&#125;;</span><br><span class="line">    ArrayList&lt;String&gt; execResult = executeCommand(strCmd);</span><br><span class="line">    <span class="keyword">if</span> (execResult != <span class="literal">null</span>)&#123;</span><br><span class="line">        Log.i(LOG_TAG,<span class="string">&quot;成功&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span>&#123;</span><br><span class="line">        Log.i(LOG_TAG,<span class="string">&quot;失败&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="（6）访问私有目录"><a href="#（6）访问私有目录" class="headerlink" title="（6）访问私有目录"></a>（6）访问私有目录</h4><p>Android系统中私有目录必须要获取root权限才能进行访问，例如 &#x2F;data、&#x2F;system、&#x2F;etc 等，可以通过读写测试来判断：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Boolean</span> <span class="variable">writeFlag</span> <span class="operator">=</span> writeFile(<span class="string">&quot;/data/su_test&quot;</span>, fileContent);</span><br><span class="line">            <span class="keyword">if</span> (writeFlag) &#123;</span><br><span class="line">                Log.i(LOG_TAG, <span class="string">&quot;write ok&quot;</span>);</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                Log.i(LOG_TAG, <span class="string">&quot;write failed&quot;</span>);</span><br><span class="line">            &#125;</span><br><span class="line"><span class="type">String</span> <span class="variable">strRead</span> <span class="operator">=</span> readFile(<span class="string">&quot;/data/su_test&quot;</span>);</span><br><span class="line">            Log.i(LOG_TAG, <span class="string">&quot;strRead=&quot;</span> + strRead);</span><br><span class="line">            <span class="keyword">if</span> (fileContent.equals(strRead)) &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">            &#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="（7）读取build-prop中的关键属性"><a href="#（7）读取build-prop中的关键属性" class="headerlink" title="（7）读取build.prop中的关键属性"></a>（7）读取build.prop中的关键属性</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">getprop ro.build.type</span><br><span class="line">getprop ro.build.tags</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/11.png" alt="image-20220424143048945"></p>
+<p>我们可以看出这是测试版，就具有root权限</p>
+<h4 id="（8）检测市面上主流的模拟器"><a href="#（8）检测市面上主流的模拟器" class="headerlink" title="（8）检测市面上主流的模拟器"></a>（8）检测市面上主流的模拟器</h4><p>一般市面上的模拟器都带有root权限，比如我们可以使用上文的模拟器检测来进一步检测root，比如夜神模拟器<code>nox</code>等</p>
+<h4 id="（9）检测hook框架特征"><a href="#（9）检测hook框架特征" class="headerlink" title="（9）检测hook框架特征"></a>（9）检测hook框架特征</h4><p>无论Xposed还是frida都需要root，我们也可以通过检测hook框架来判断是否进行root</p>
+<h3 id="4-hook检测"><a href="#4-hook检测" class="headerlink" title="4.hook检测"></a>4.hook检测</h3><h4 id="（1）Xposed检测"><a href="#（1）Xposed检测" class="headerlink" title="（1）Xposed检测"></a>（1）Xposed检测</h4><p>Xposed是一个动态插桩的hook框架，通过替换app_process原始进程，将java函数注册为native函数，从而获得更早的运行时机，Xposed检测详细可以参考我之前的文章<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269627.htm">Xposed定制</a></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/12.png" alt="image-20220424143048945"></p>
+<p>图中的特征修改点就是我们可以进行检测的地方</p>
+<h4 id="（2）frida检测"><a href="#（2）frida检测" class="headerlink" title="（2）frida检测"></a>（2）frida检测</h4><p>frida和Xposed原理差不多，同样是一个动态插桩工具，详细的源码分析可以参考文章：<a target="_blank" rel="noopener" href="https://mabin004.github.io/2018/07/31/Mac%E4%B8%8A%E7%BC%96%E8%AF%91Frida/">frida源码分析</a></p>
+<p>frida检测的途径很多，这里只简单介绍一些</p>
+<p><strong>端口和frida_server检测：</strong></p>
+<p>最简单的一种检测方式，厂商通过检测端口是否为固定的27047，还可以检测运行的frida_server名称</p>
+<p><strong>so层系统API检测：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">遍历连接手机所有端口发送D-bus消息，如果返回&quot;REJECT&quot;这个特征则认为存在frida-server</span><br><span class="line">直接调用openat的syscall的检测在text节表中搜索frida-gadget*.so / frida-agent*.so字符串，避免了hook libc来anti-anti的方法</span><br><span class="line">内存中存在frida rpc字符串，认为有frida-server</span><br></pre></td></tr></table></figure>
+
+<p><strong>so层非系统API检测：</strong></p>
+<p>遍历连接手机所有端口发送D-bus消息，如果返回”REJECT”这个特征则认为存在frida-server</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Mini-portscan to detect frida-server on any local port.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">for</span>(i = <span class="number">0</span> ; i &lt;= <span class="number">65535</span> ; i++) &#123;</span><br><span class="line">    sock = socket(AF_INET , SOCK_STREAM , <span class="number">0</span>);</span><br><span class="line">    sa.sin_port = htons(i);</span><br><span class="line">    <span class="keyword">if</span> (connect(sock , (struct sockaddr*)&amp;sa , sizeof sa) != -<span class="number">1</span>) &#123;</span><br><span class="line">        __android_log_print(ANDROID_LOG_VERBOSE, APPNAME,  <span class="string">&quot;FRIDA DETECTION [1]: Open Port: %d&quot;</span>, i);</span><br><span class="line">        memset(res, <span class="number">0</span> , <span class="number">7</span>);</span><br><span class="line">        <span class="comment">// send a D-Bus AUTH message. Expected answer is “REJECT&quot;</span></span><br><span class="line">        send(sock, <span class="string">&quot;\x00&quot;</span>, <span class="number">1</span>, NULL);</span><br><span class="line">        send(sock, <span class="string">&quot;AUTH\r\n&quot;</span>, <span class="number">6</span>, NULL);</span><br><span class="line">        usleep(<span class="number">100</span>);</span><br><span class="line">        <span class="keyword">if</span> (ret = recv(sock, res, <span class="number">6</span>, MSG_DONTWAIT) != -<span class="number">1</span>) &#123;</span><br><span class="line">            <span class="keyword">if</span> (strcmp(res, <span class="string">&quot;REJECT&quot;</span>) == <span class="number">0</span>) &#123;</span><br><span class="line">               <span class="comment">/* Frida server detected. Do something… */</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    close(sock);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>检测内存库来检测：</strong></p>
+<p>Frida 的各个模式都是用来注入的，我们可以利用的点就是 frida 运行时映射到内存的库。最直接的是挨个检查加载的库</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">char</span> line[<span class="number">512</span>];</span><br><span class="line">FILE* fp;</span><br><span class="line">fp = fopen(<span class="string">&quot;/proc/self/maps&quot;</span>, <span class="string">&quot;r&quot;</span>);</span><br><span class="line"><span class="keyword">if</span> (fp) &#123;</span><br><span class="line">    <span class="keyword">while</span> (fgets(line, <span class="number">512</span>, fp)) &#123;</span><br><span class="line">        <span class="keyword">if</span> (strstr(line, <span class="string">&quot;frida&quot;</span>)) &#123;</span><br><span class="line">            <span class="comment">/* Evil library is loaded. Do something… */</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    fclose(fp);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">       <span class="comment">/* Error opening /proc/self/maps. If this happens, something is off. */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>inlinehook检测frida：</strong></p>
+<p>frida实现hook一定实现了inlinehook技术，所以我们还可以通过inlinehook库来检测</p>
+<p>参考文章:<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269862.htm">从inlinehook角度检测frida</a></p>
+<h2 id="三、动静态分析实例分析"><a href="#三、动静态分析实例分析" class="headerlink" title="三、动静态分析实例分析"></a>三、动静态分析实例分析</h2><h3 id="1-静态分析与脱壳"><a href="#1-静态分析与脱壳" class="headerlink" title="1.静态分析与脱壳"></a>1.静态分析与脱壳</h3><p>实验案例：client.apk，漏洞银行.apk</p>
+<h4 id="（1）脱壳"><a href="#（1）脱壳" class="headerlink" title="（1）脱壳"></a>（1）脱壳</h4><p>我们打开client.apk，发现使用360加壳</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/13.png" alt="image-20220424150652346"></p>
+<p>然后我们使用葫芦娃大佬Frida_Dexdump脱壳工具进行脱壳，项目代码：<a target="_blank" rel="noopener" href="https://github.com/hluwa/frida-dexdump">https://github.com/hluwa/frida-dexdump</a></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(1)启动frida_server</span><br><span class="line">(2)直接frida-dexdump -U -d -f 包名 -o 路径名</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/14.png" alt="image-20220424150652346"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/15.png" alt="image-20220424150652346"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/16.png" alt="image-20220424151332577"></p>
+<h4 id="（2）静态分析"><a href="#（2）静态分析" class="headerlink" title="（2）静态分析"></a>（2）静态分析</h4><p>我们脱壳完成后就进入正常的静态分析流程</p>
+<p>首先，从入口点出发：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/17.png" alt="image-20220424151332577"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/18.png" alt="image-20220424151332577"></p>
+<p>我们可以看见入口类最后一个函数是启动一个延时器，3秒后延时实例化<code>SplachScreen$a()</code>类，然后我们进入此类</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/19.png" alt="image-20220424151332577"></p>
+<p>我们可以发现该类实现Runnable接口，启动一个线程，然后里面完成从当前的Activity跳转到<code>MainActivity</code>类</p>
+<p>进入<code>MainAcitivity</code>类：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/20.png" alt="image-20220424151332577"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/21.png" alt="image-20220424151332577"></p>
+<p>我们简单分析一下代码逻辑，可以发现该APP实现了一些常见的反调试手段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（1）模拟器检测</span><br><span class="line">（2）动态调试检测</span><br><span class="line">（3）Root检测</span><br><span class="line">（4）Frida检测</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-动态调试过反调试"><a href="#2-动态调试过反调试" class="headerlink" title="2.动态调试过反调试"></a>2.动态调试过反调试</h3><h4 id="（1）java层"><a href="#（1）java层" class="headerlink" title="（1）java层"></a>（1）java层</h4><p>案例：wifiKiller.apk</p>
+<p>这里我们使用AndroidStudio进行动态调试，发现没有debuggable的值，就默认ro.debuggable &#x3D; false防止反调：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/34.png" alt="image-20220424151332577"></p>
+<p>Android studio在动态调试的时候出现错误:</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/35.png" alt="image-20220424151332577"></p>
+<h4 id="（2）java层过反调"><a href="#（2）java层过反调" class="headerlink" title="（2）java层过反调"></a>（2）java层过反调</h4><p>java层过反调方法：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mprop模块</span><br><span class="line">xposed模块</span><br><span class="line">定制Room</span><br></pre></td></tr></table></figure>
+
+<p>这里我们使用第一种方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">./mprop ro.debuggable 1</span><br><span class="line">getprop ro.debuggable</span><br><span class="line">start;stop</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/36.png" alt="image-20220424151332577"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/37.png" alt="image-20220424151332577"></p>
+<p>我们发现ddms可以查看进程说明已经过java层反调试了</p>
+<h4 id="（3）so层"><a href="#（3）so层" class="headerlink" title="（3）so层"></a>（3）so层</h4><h5 id="lt-1-gt-IDA普通调试"><a href="#lt-1-gt-IDA普通调试" class="headerlink" title="&lt;1&gt;IDA普通调试"></a>&lt;1&gt;IDA普通调试</h5><p>样例：AliCrakme.apk</p>
+<p>我们进行静态分析，分析到了native函数，就需要对so层进行分析了</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/38.png" alt="image-20220424151332577"></p>
+<p>我们继续上面的案例，首先运行android_server (这里这样是防止android_server反调试)</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/39.png" alt="image-20220424151332577"></p>
+<p>然后进行端口转发 </p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb forward tcp:39026 tcp:39026</span><br></pre></td></tr></table></figure>
+
+<p>然后附加程序</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/40.png" alt="image-20220424151332577"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/41.png" alt="image-20220424151332577"></p>
+<p>在module中查找对应的so文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/42.png" alt="image-20220424151332577"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/43.png" alt="image-20220424151332577"></p>
+<p>直接进入securityCheck函数</p>
+<p>我们在函数头f2下一断点，开始动态调试</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/44.png" alt="image-20220424151332577"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/45.png" alt="image-20220424151332577"></p>
+<p>以上是可以直接将so文件，附加进来，但是有时IDA版本或者手机系统版本原因，我们不能在moudle模块中找到</p>
+<p>解决办法：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">绝对地址 = 相对地址（native函数）+ 基地址（so文件）</span><br></pre></td></tr></table></figure>
+
+<p>首先，我们Ctrl+s找到so文件对应的基地址</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/46.png" alt="image-20220424151332577"></p>
+<p>其次我们相对地址就是我们静态调试时的函数地址</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/47.png" alt="image-20220424151332577"></p>
+<p>相对地址&#x3D;11AB+B3AFA000&#x3D;B3AF A1AB 我们可以发现这和我们附加进来的地址一致</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/48.png" alt="image-20220424151332577"></p>
+<p>这说明程序一定含有反调试的策略，我们接下来应该解决程序的反调试策略</p>
+<h4 id="（4）so层过反调"><a href="#（4）so层过反调" class="headerlink" title="（4）so层过反调"></a>（4）so层过反调</h4><p>我们可以查看TrancePId值来验证(我们需要重新执行以上步骤动态调试，不过不运行)</p>
+<p>首先，我们查看程序进程状态</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ps |grep tong</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/49.png" alt="image-20220424151332577"></p>
+<p>其次我们，根据找到的PID号，查看对应状态：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cat /proc/25196/status </span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/50.png" alt="image-20220424151332577"></p>
+<p>你发现这里的值不为0，你可以验证没有进行IDA调试时候的值，经过以上分析我们可以确定该APK采用了反调试策略</p>
+<h5 id="lt-1-gt-IDA挂起动态调试"><a href="#lt-1-gt-IDA挂起动态调试" class="headerlink" title="&lt;1&gt;IDA挂起动态调试"></a>&lt;1&gt;IDA挂起动态调试</h5><p>首先完成基础配置：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">a.运行android_server</span><br><span class="line">b.转发端口</span><br><span class="line">c.打开ddms,查看进程状态</span><br><span class="line">d.挂起程序 adb shell am start -D -n 包名/.MainActivity</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/51.png" alt="image-20220424151332577"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/52.png" alt="image-20220424151332577"></p>
+<p>你要获得后面的程序，可以打开程序后，输入adb shell dumpsys activity top 则可以查看</p>
+<p>我们发现ddms上的进程前面出现红色小虫子，说明程序被挂起，而手机端也会显示挂起的界面</p>
+<p>然后进行附加进程，挂载三项</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/53.png" alt="image-20220424151332577"></p>
+<p>然后按F9运行，我们发现此时程序退出，这是因为我们此时是挂起调试，程序还没有初始化</p>
+<p>我们运行:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">jdb -connect com.sun.jdi.SocketAttach:hostname=127.0.0.1,port=8609</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/54.png" alt="image-20220424151332577"></p>
+<p>IDA附加so文件，我们点击取消就可以加载进来（要是没显示就按照上文地址的计算方法）</p>
+<p>我们此时进入libCramke.so文件，并进入JNI_OnLoad方法（我们进入这里主要是为了解决反调试）</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/55.png" alt="image-20220424151332577"></p>
+<p>我们按F9运行，并按F8进行单步步入</p>
+<p>下面使用F8开始单步调试了，发现每次到达BLX R7这条指令执行完之后，JNI_OnLoad函数就退出了，这个地方存在问题，可能就是反调试的地方了。我们再次进入调试，看见BLX跳转的地方R7寄存器中是 pthread_create 函数</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/56.png" alt="image-20220424151332577"></p>
+<p>到了这里我们就找到了出问题的地方，接下来我们只需要修改对应的位置就可以了。</p>
+<p>可以把 BLX R7 这条指令给nop掉，也就是把这条指令变成空指令（相当于删除这条指令）这样apk就不会新建线程去执行检测代码了。</p>
+<p>我们在直接静态分析so的IDA中找到 BLX R7的位置</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/57.png" alt="image-20220424151332577"></p>
+<p>我们把这条指令给nop掉，我们打开其对应16进制的窗口，并把值改为0</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/58.png" alt="image-20220424151332577"></p>
+<p>我们保存修改后的so文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/59.png" alt="image-20220424151332577"></p>
+<p>我们保存，再AndroidKiller里面进行回编译，则得到绕过反调试的apk</p>
+<h2 id="四、其他防护过反调试"><a href="#四、其他防护过反调试" class="headerlink" title="四、其他防护过反调试"></a>四、其他防护过反调试</h2><p>我们上面静态分析了漏洞银行的案例，我们发现其采用了模拟器检测、root检测、frida检测，下面我们依次进行反调试绕过</p>
+<h3 id="1-过模拟器检测"><a href="#1-过模拟器检测" class="headerlink" title="1.过模拟器检测"></a>1.过模拟器检测</h3><p>首先我们定位到该处的代码段</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/60.png" alt="image-20220418112117049"></p>
+<p>经过分析我们可以分析关键变量：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">str2-----&gt;d.a-----&gt;i3</span><br></pre></td></tr></table></figure>
+
+<p>即决定模拟器检测的变量是<code>i3</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/61.png" alt="image-20220418112558229"></p>
+<p>我们从下至上逐一分析代码逻辑：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/62.png" alt="image-20220418112917345"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">这里检测windows下bluestacks模拟器的文件夹是否存在，存在i3值即增加</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/63.png" alt="image-20220418113041416"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">这里使用GLES20着色器来检测Bluestacks模拟器和Translator模拟器</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/64.png" alt="image-20220418124110887"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">上面部分代码就是从sdk等方面检测各个模拟器，我们可以看见我们这里的夜神模拟器nox</span><br></pre></td></tr></table></figure>
+
+<p>我们分析了模拟器检测的代码，但是这里我们发现这部分代码并没有直接导致程序崩溃的代码段</p>
+<p>我们继续分析，发现</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/65.png" alt="image-20220418124626125"></p>
+<p>只有当我们进行root、frida等情况，才会将APP关闭，而此时我们还没有使用frida，这就是模拟器root的原因导致的</p>
+<p>这里首先我们关闭模拟器的root设置，进行重启，按照判断，应该是可以正常安装</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/66.png" alt="image-20220418125212962"></p>
+<p>再次安装，发现奇怪还是一样安装失败</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/67.png" alt="image-20220418103815525"></p>
+<p>此时我们进一步分析，按理说就算检测到模拟器，检测root也应该是可以安装成功，只是打开时候结束，这里说明还有其他地方有防护</p>
+<p>经过分析，我们在<code>AndroidManifest.xml</code>中找到一个关键属性<code>hardwareAccelerated</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/68.png" alt="image-20220418125732581"></p>
+<p><code>hardwareAccelerated=ture</code>意味着APP计划利用移动设备中GPU资源来使其运行，但是很显然我们的模拟器是没有GPU的，所以就会导致直接崩溃，安装不上去</p>
+<p>这里我们简单将<code>hardwareAccelerated</code>值改为false，然后重编译</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/69.png" alt="image-20220418125954986"></p>
+<p>然后我们再次安装</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/70.png" alt="image-20220418130031095"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/71.png" alt="image-20220418130047867"></p>
+<p>程序成功安装，并可以打开，这里我们启动root可以进一步验证一下刚才的分析：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/72.png" alt="image-20220418130214218"></p>
+<p>果然程序就打开后，直接闪退，并报错检测到root，这和我们上面的分析一致，也证明这里我们解决了模拟器检测绕过</p>
+<h3 id="2过root检测"><a href="#2过root检测" class="headerlink" title="2过root检测"></a>2过root检测</h3><p>上面虽然我们关闭root可以解决模拟器检测绕过问题，但是很多时候没有root，我们就很受限了，这里我们尝试进一步绕过root检测</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/73.png" alt="image-20220418130605478"></p>
+<p>这里我们可以发现只需要将<code>a.R()</code>的返回值修改就可以了，我们可以采用hook手段，如Xposed或frida</p>
+<p>我们进一步分析，root检测实现：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/74.png" alt="image-20220418131313998"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">我们可以发现检测root的原理很简单：</span><br><span class="line">（1）列举所有su存在的集合</span><br><span class="line">（2）遍历集合，执行su，看是否成功</span><br><span class="line">（3）成功返回ture</span><br></pre></td></tr></table></figure>
+
+<p>绕过此处root方式很多，比如该程序没有签名校验机制，最简单直接修改代码，反编译，这里我们为了学习，通过hook技术，比如Xposed可以绕过，但是经过前面分析，该APP有frida检测，那我们就使用frida来进行测试</p>
+<h3 id="3-过frida检测"><a href="#3-过frida检测" class="headerlink" title="3.过frida检测"></a>3.过frida检测</h3><p>我们随便创建一个js脚本，然后启动frida</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/75.png" alt="image-20220418133314857"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/76.png" alt="image-20220418133401493"></p>
+<p>发现程序检测到Frida在运行，然后直接崩溃，我们进一步分析Frida检测的代码</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/77.png" alt="image-20220418133529649"></p>
+<p>可以发现主要是<code>fridaCheck（）这个函数</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/78.png" alt="image-20220418133622096"></p>
+<p>进一步分析，可以发现该方法是native方法，因此我们进一步进入so层分析，我们打开<code>frida-check</code>so文件</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/79.png" alt="image-20220418133837056"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/80.png" alt="image-20220418134004354"></p>
+<p>没有<code>JNI_Onload</code>程序是静态注册</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/81.png" alt="image-20220418135758838"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/82.png" alt="image-20220418140558354"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/83.png" alt="image-20220418141203374"></p>
+<p>代码逻辑很简单：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">（1）函数的返回值为result</span><br><span class="line">（2）v2值给result</span><br><span class="line">（3）connect函数是否&gt;=0决定最后程序的返回值为true还是false</span><br><span class="line">（4）addr值可以发现就是结构体的首地址，即为0xA2690002</span><br><span class="line">（5）我们需要考虑二进制文件中的大小端序的问题，需要将值进一步的转变，将8位分为两半0xA269和0x0002,然后变为十进制，前面变为0x69A2，即27042</span><br><span class="line">（6）所以我们可以发现connect使用该值就是其端口号27042</span><br><span class="line">总结，APP检测Frida是否运行在27042的套接字上，如果允许在上面就返回true，从而可以判断程序在使用frida,然后关闭程序</span><br></pre></td></tr></table></figure>
+
+<p>这里我们分析结束，很简单只需要不将frida_server运行在27042端口上即可</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/84.png" alt="image-20220418141845557"></p>
+<p>再次启动frida看是否生效</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/85.png" alt="image-20220418142257172"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/86.png" alt="image-20220418142344312"></p>
+<p>此时我们发现程序frida并未检测到，这说明我们上面的分析是正确的</p>
+<p>接下来只需要编写hook代码，将root检测绕过即可</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">test</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">        <span class="keyword">var</span> class_obj = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;a.a.a.a.a&quot;</span>);</span><br><span class="line">        class_obj.<span class="property">R</span>.<span class="property">implementation</span> = <span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">            <span class="keyword">var</span> result = <span class="variable language_">this</span>.<span class="title function_">R</span>();</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;result:&quot;</span>+result);</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">main</span>(<span class="params">params</span>) &#123;</span><br><span class="line">    <span class="title function_">test</span>()</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="title function_">setImmediate</span>(main)</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/87.png" alt="image-20220418143707200"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/88.png" alt="image-20220418143751714"></p>
+<p>这里我们就发现成功的hook程序，进入了正常的界面</p>
+<h3 id="4-过Xposed检测"><a href="#4-过Xposed检测" class="headerlink" title="4.过Xposed检测"></a>4.过Xposed检测</h3><p>过Xposed检测详细可以参考文章：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269627.htm">Xposed定制</a></p>
+<h2 id="五、过反调试的APP漏洞挖掘"><a href="#五、过反调试的APP漏洞挖掘" class="headerlink" title="五、过反调试的APP漏洞挖掘"></a>五、过反调试的APP漏洞挖掘</h2><p>案例：漏洞银行.apk</p>
+<p>前面我们采用了一些方法进行了反调试绕过，这里我们拿漏洞银行的例子，去联合我们前面的漏洞挖掘技巧和反调试技巧，展现如何过反调试后挖掘Android里面的一些漏洞</p>
+<h3 id="1-加密传输漏洞"><a href="#1-加密传输漏洞" class="headerlink" title="1.加密传输漏洞"></a>1.加密传输漏洞</h3><p>经过我们上篇帖子，讲述了如何解决抓包中的安全防护绕过问题，参考<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-272270.htm">Android APP漏洞之战（9）——验证码漏洞挖掘详解</a>,当我们绕过这些常见的抓包防护后，最后就是hook和算法还原，我们前面也绕过了hook检测</p>
+<p>我们配置好抓包环境：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/98.png" alt="image-20220418160104970"></p>
+<p>我们使用burpsuit进行抓包：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/99.png" alt="image-20220418160147202"></p>
+<p>我们发现这里是加密的字段，我们可以全文搜索<code>enc_data</code></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/100.png" alt="image-20220418160330922"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/101.png" alt="image-20220418160416195"></p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/102.png" alt="image-20220418160603102"></p>
+<h4 id="（1）hook方法"><a href="#（1）hook方法" class="headerlink" title="（1）hook方法"></a>（1）hook方法</h4><p>我们就可以定位到<code>e</code>类中的两个函数段,这样我们只需要对这两处函数进行hook，将参数打印出来就是我们传输的字符串了</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">hookentry</span>(<span class="params"></span>) &#123;</span><br><span class="line">    <span class="title class_">Java</span>.<span class="title function_">perform</span>(<span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">        <span class="keyword">var</span> class_obj = <span class="title class_">Java</span>.<span class="title function_">use</span>(<span class="string">&quot;c.b.a.e&quot;</span>);</span><br><span class="line">        class_obj.<span class="property">a</span>.<span class="property">implementation</span> = <span class="keyword">function</span> (<span class="params">arg0</span>) &#123;</span><br><span class="line">            <span class="keyword">var</span> result = <span class="variable language_">this</span>.<span class="title function_">a</span>(arg0);</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;arg0_a:&quot;</span>+arg0);</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;result_a:&quot;</span>+result)</span><br><span class="line">            <span class="keyword">return</span> result;</span><br><span class="line">        &#125;</span><br><span class="line">        class_obj.<span class="property">b</span>.<span class="property">implementation</span> = <span class="keyword">function</span> (<span class="params">arg0</span>) &#123;</span><br><span class="line">            <span class="keyword">var</span> result = <span class="variable language_">this</span>.<span class="title function_">b</span>(arg0);</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;arg0_b:&quot;</span>+arg0);</span><br><span class="line">            <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;result_b:&quot;</span>+result)</span><br><span class="line">            <span class="keyword">return</span> result;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/103.png" alt="image-20220418161219954"></p>
+<p>我们进行注册：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/104.png" alt="image-20220418161319462"></p>
+<p>先看抓包情况：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/105.png" alt="image-20220418161407839"></p>
+<p>再看脚本hook值：</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/106.png" alt="image-20220418161440033"></p>
+<p>这样我们就成功的将加密前的数据和加密后的数据打印出来了</p>
+<p>我们通过动态调试验证一样</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/107.png" alt="image-20220418195256625"></p>
+<h4 id="（2）算法还原方法"><a href="#（2）算法还原方法" class="headerlink" title="（2）算法还原方法"></a>（2）算法还原方法</h4><p>上面我们利用hook的方法成功的获得解密后的数据，一般在做逆向开发过程时，还可以通过编写解密函数来实现解密</p>
+<p>首先我们要分析加密逻辑</p>
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/108.png" alt="image-20220418162723283"></p>
+<p>我们可以发现这里就是先通过c函数进行加密，然后使用base64进行加密</p>
+<p>编写解密函数：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> <span class="variable constant_">SECRET</span> = <span class="string">&#x27;amazing&#x27;</span>;</span><br><span class="line"><span class="keyword">const</span> <span class="variable constant_">SECRET_LENGTH</span> = <span class="variable constant_">SECRET</span>.<span class="property">length</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> <span class="title function_">operate</span> = (<span class="params">input</span>) =&gt; &#123;</span><br><span class="line">  <span class="keyword">let</span> result = <span class="string">&quot;&quot;</span>;</span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">let</span> i <span class="keyword">in</span> input) &#123;</span><br><span class="line">    result += <span class="title class_">String</span>.<span class="title function_">fromCharCode</span>(input.<span class="title function_">charCodeAt</span>(i)^<span class="variable constant_">SECRET</span>.<span class="title function_">charCodeAt</span>(i%<span class="variable constant_">SECRET_LENGTH</span>));</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> <span class="title function_">decrypt</span> = (<span class="params">encodedInput</span>) =&gt; &#123;  </span><br><span class="line">  <span class="keyword">let</span> input = <span class="title class_">Buffer</span>.<span class="title function_">from</span>(encodedInput, <span class="string">&#x27;base64&#x27;</span>).<span class="title function_">toString</span>();</span><br><span class="line">  <span class="keyword">let</span> dec = <span class="title function_">operate</span>(input);</span><br><span class="line">  <span class="variable language_">console</span>.<span class="title function_">log</span>(dec);</span><br><span class="line">  <span class="keyword">return</span> dec;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="title function_">decrypt</span>(<span class="string">&quot;Gk8UCQwcCQAABFhTTBQHHhIJS0JFEQwSCR4BFQVPW1gaCAFDEA==&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/109.png" alt="image-20220418165727819"></p>
+<p>这样也可以成功的解密</p>
+<h3 id="2-敏感信息披露漏洞"><a href="#2-敏感信息披露漏洞" class="headerlink" title="2.敏感信息披露漏洞"></a>2.敏感信息披露漏洞</h3><p>我们在前面的文章中也讲述了此类漏洞问题，主要是因为应用中采用了硬编码导致的</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb shell ps -ef | grep damn</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/110.png" alt="image-20220418170232927"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb logcat | grep 8992</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://bugs-1307040378.cos.ap-chengdu.myqcloud.com/0005/111.png" alt="image-20220418184948147"></p>
+<p>这里我们可以发现，可以获取部分的敏感信息</p>
+<h2 id="六、实验总结"><a href="#六、实验总结" class="headerlink" title="六、实验总结"></a>六、实验总结</h2><p>本文总结并一一分析了当下Android APP中常见的防护策略，并通过案例实操实现了反调试策略的过反调，学习并掌握本节可以更加进一步助力Android APP漏洞挖掘中的漏洞学习，最后我们将反调试技巧和漏洞挖掘实例进行结合，并实操了案例，本文后续会将实验案例逐一上传到知识星球中。</p>
+<p>github首页：<a target="_blank" rel="noopener" href="https://github.com/WindXaa/Android-Vulnerability-Mining">github</a></p>
+<h2 id="七、参考文献"><a href="#七、参考文献" class="headerlink" title="七、参考文献"></a>七、参考文献</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">https://bbs.pediy.com/thread-225717.htm</span><br><span class="line">https://nszdhd1.github.io/2020/03/09/Magisk%E6%A3%80%E6%B5%8B/</span><br><span class="line">https://mabin004.github.io/2018/07/31/Mac%E4%B8%8A%E7%BC%96%E8%AF%91Frida/</span><br><span class="line">https://www.jianshu.com/p/f679cb404524</span><br><span class="line">https://bbs.pediy.com/thread-269862.htm#msg_header_h3_4</span><br><span class="line">https://bbs.pediy.com/thread-270269.htm</span><br><span class="line">https://juejin.cn/post/6844903733248131079#heading-5</span><br><span class="line">https://bbs.pediy.com/thread-268586.htm</span><br><span class="line">https://blog.51cto.com/u_15308480/3140020</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2023/02/09/bug0005/" title="Android App漏洞之战（5）——（调试篇）调试与反调详解">http://security-kitchen.com/2023/02/09/bug0005/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98/" rel="tag"># 漏洞挖掘</a>
+              <a href="/tags/%E5%B7%A5%E5%85%B7/" rel="tag"># 工具</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/02/09/bug0004/" rel="prev" title="Android App漏洞之战（4）——（三件套）AppInfoScanner+ApplicationScanner+AppShark">
+      <i class="fa fa-chevron-left"></i> Android App漏洞之战（4）——（三件套）AppInfoScanner+ApplicationScanner+AppShark
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/02/09/bug0006/" rel="next" title="Android App漏洞之战（6）——（Hook篇）常见的Hook技术详解">
+      Android App漏洞之战（6）——（Hook篇）常见的Hook技术详解 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81%E7%9B%B8%E5%85%B3%E4%BB%8B%E7%BB%8D"><span class="nav-text">二、相关介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E6%A8%A1%E6%8B%9F%E5%99%A8%E6%A3%80%E6%B5%8B"><span class="nav-text">1.模拟器检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Android%E5%8A%A8%E9%9D%99%E6%80%81%E8%B0%83%E8%AF%95%E6%96%B9%E6%B3%95"><span class="nav-text">2.Android动静态调试方法</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E9%9D%99%E6%80%81%E5%88%86%E6%9E%90"><span class="nav-text">（1）静态分析</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E9%9D%99%E6%80%81%E5%88%86%E6%9E%90%E7%9A%84%E9%98%B2%E6%8A%A4%E7%AD%96%E7%95%A5"><span class="nav-text">（2）静态分析的防护策略</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%8A%A8%E6%80%81%E5%88%86%E6%9E%90"><span class="nav-text">（3）动态分析</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-AndroidStudio%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95"><span class="nav-text">&lt;1&gt;AndroidStudio动态调试</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-IDA%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95%E6%AD%A5%E9%AA%A4"><span class="nav-text">&lt;2&gt;IDA动态调试步骤</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-3-gt-GDB%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95"><span class="nav-text">&lt;3&gt;GDB动态调试</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E5%8A%A8%E6%80%81%E5%88%86%E6%9E%90%E7%9A%84%E9%98%B2%E6%8A%A4%E7%AD%96%E7%95%A5"><span class="nav-text">（4）动态分析的防护策略</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Root%E6%A3%80%E6%B5%8B"><span class="nav-text">3.Root检测</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881-%E6%A3%80%E6%B5%8B%E7%9B%AE%E5%BD%95%E4%B8%AD%E6%98%AF%E5%90%A6%E5%90%ABsu"><span class="nav-text">（1)  检测目录中是否含su</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%A3%80%E6%B5%8B%E7%B3%BB%E7%BB%9F%E6%98%AF%E5%90%A6%E4%B8%BA%E6%B5%8B%E8%AF%95%E7%89%88"><span class="nav-text">（2）检测系统是否为测试版</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E4%BD%BF%E7%94%A8which%E5%91%BD%E4%BB%A4%E6%9F%A5%E7%9C%8B%E6%98%AF%E5%90%A6%E6%9C%89su"><span class="nav-text">（3）使用which命令查看是否有su</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E6%A3%80%E6%B5%8BMagisk%E6%88%96Superuser-apk"><span class="nav-text">（4）检测Magisk或Superuser.apk</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%885%EF%BC%89%E6%89%A7%E8%A1%8CBusybox"><span class="nav-text">（5）执行Busybox</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%886%EF%BC%89%E8%AE%BF%E9%97%AE%E7%A7%81%E6%9C%89%E7%9B%AE%E5%BD%95"><span class="nav-text">（6）访问私有目录</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%887%EF%BC%89%E8%AF%BB%E5%8F%96build-prop%E4%B8%AD%E7%9A%84%E5%85%B3%E9%94%AE%E5%B1%9E%E6%80%A7"><span class="nav-text">（7）读取build.prop中的关键属性</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%888%EF%BC%89%E6%A3%80%E6%B5%8B%E5%B8%82%E9%9D%A2%E4%B8%8A%E4%B8%BB%E6%B5%81%E7%9A%84%E6%A8%A1%E6%8B%9F%E5%99%A8"><span class="nav-text">（8）检测市面上主流的模拟器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%889%EF%BC%89%E6%A3%80%E6%B5%8Bhook%E6%A1%86%E6%9E%B6%E7%89%B9%E5%BE%81"><span class="nav-text">（9）检测hook框架特征</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-hook%E6%A3%80%E6%B5%8B"><span class="nav-text">4.hook检测</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89Xposed%E6%A3%80%E6%B5%8B"><span class="nav-text">（1）Xposed检测</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89frida%E6%A3%80%E6%B5%8B"><span class="nav-text">（2）frida检测</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E5%8A%A8%E9%9D%99%E6%80%81%E5%88%86%E6%9E%90%E5%AE%9E%E4%BE%8B%E5%88%86%E6%9E%90"><span class="nav-text">三、动静态分析实例分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E9%9D%99%E6%80%81%E5%88%86%E6%9E%90%E4%B8%8E%E8%84%B1%E5%A3%B3"><span class="nav-text">1.静态分析与脱壳</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E8%84%B1%E5%A3%B3"><span class="nav-text">（1）脱壳</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E9%9D%99%E6%80%81%E5%88%86%E6%9E%90"><span class="nav-text">（2）静态分析</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95%E8%BF%87%E5%8F%8D%E8%B0%83%E8%AF%95"><span class="nav-text">2.动态调试过反调试</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89java%E5%B1%82"><span class="nav-text">（1）java层</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89java%E5%B1%82%E8%BF%87%E5%8F%8D%E8%B0%83"><span class="nav-text">（2）java层过反调</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89so%E5%B1%82"><span class="nav-text">（3）so层</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-IDA%E6%99%AE%E9%80%9A%E8%B0%83%E8%AF%95"><span class="nav-text">&lt;1&gt;IDA普通调试</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89so%E5%B1%82%E8%BF%87%E5%8F%8D%E8%B0%83"><span class="nav-text">（4）so层过反调</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-IDA%E6%8C%82%E8%B5%B7%E5%8A%A8%E6%80%81%E8%B0%83%E8%AF%95"><span class="nav-text">&lt;1&gt;IDA挂起动态调试</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%85%B6%E4%BB%96%E9%98%B2%E6%8A%A4%E8%BF%87%E5%8F%8D%E8%B0%83%E8%AF%95"><span class="nav-text">四、其他防护过反调试</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E8%BF%87%E6%A8%A1%E6%8B%9F%E5%99%A8%E6%A3%80%E6%B5%8B"><span class="nav-text">1.过模拟器检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2%E8%BF%87root%E6%A3%80%E6%B5%8B"><span class="nav-text">2过root检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E8%BF%87frida%E6%A3%80%E6%B5%8B"><span class="nav-text">3.过frida检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E8%BF%87Xposed%E6%A3%80%E6%B5%8B"><span class="nav-text">4.过Xposed检测</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E8%BF%87%E5%8F%8D%E8%B0%83%E8%AF%95%E7%9A%84APP%E6%BC%8F%E6%B4%9E%E6%8C%96%E6%8E%98"><span class="nav-text">五、过反调试的APP漏洞挖掘</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%8A%A0%E5%AF%86%E4%BC%A0%E8%BE%93%E6%BC%8F%E6%B4%9E"><span class="nav-text">1.加密传输漏洞</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89hook%E6%96%B9%E6%B3%95"><span class="nav-text">（1）hook方法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E7%AE%97%E6%B3%95%E8%BF%98%E5%8E%9F%E6%96%B9%E6%B3%95"><span class="nav-text">（2）算法还原方法</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E6%95%8F%E6%84%9F%E4%BF%A1%E6%81%AF%E6%8A%AB%E9%9C%B2%E6%BC%8F%E6%B4%9E"><span class="nav-text">2.敏感信息披露漏洞</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">六、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">七、参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

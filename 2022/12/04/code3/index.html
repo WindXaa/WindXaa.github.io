@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="一、前言在上篇帖子中我们完成了Android 6.0 从源码下载到源码编译的全过程，详细可以参考源码编译（1）——Android6.0源码编译详解，本文主要讲解Xposed框架源码编译到源码定制的详细过程，实验环境主要是Android 6.0，在此过程中踩过不少坑，遇到各种问题，好在后面都一一解决了，这个过程中尤其感谢一些大佬的博客贴子，从中学习到了很多。本文将从基于我们编译的Android 6.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android源码定制（3）——Xposed源码编译详解">
+<meta property="og:url" content="http://security-kitchen.com/2022/12/04/code3/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="一、前言在上篇帖子中我们完成了Android 6.0 从源码下载到源码编译的全过程，详细可以参考源码编译（1）——Android6.0源码编译详解，本文主要讲解Xposed框架源码编译到源码定制的详细过程，实验环境主要是Android 6.0，在此过程中踩过不少坑，遇到各种问题，好在后面都一一解决了，这个过程中尤其感谢一些大佬的博客贴子，从中学习到了很多。本文将从基于我们编译的Android 6.">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/2.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/3.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/1.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/4.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/5.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/6.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/7.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/9.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/10.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/11.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/12.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/13.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/14.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/15.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/16.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/17.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/18.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/19.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/20.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/21.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/22.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/23.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/24.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/25.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/26.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/36.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/27.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/28.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/29.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/30.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/32.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/31.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/33.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/34.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/35.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/37.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/38.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/39.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/40.png">
+<meta property="article:published_time" content="2022-12-04T14:35:00.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.115Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="逆向技术">
+<meta property="article:tag" content="Xposed">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/2.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2022/12/04/code3/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android源码定制（3）——Xposed源码编译详解 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2022/12/04/code3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android源码定制（3）——Xposed源码编译详解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-04 22:35:00" itemprop="dateCreated datePublished" datetime="2022-12-04T22:35:00+08:00">2022-12-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android%E6%BA%90%E7%A0%81%E5%AE%9A%E5%88%B6/" itemprop="url" rel="index"><span itemprop="name">Android源码定制</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h2><p>在上篇帖子中我们完成了Android 6.0 从源码下载到源码编译的全过程，详细可以参考<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-269575.htm">源码编译（1）——Android6.0源码编译详解</a>，本文主要讲解Xposed框架源码编译到源码定制的详细过程，实验环境主要是Android 6.0，在此过程中踩过不少坑，遇到各种问题，好在后面都一一解决了，这个过程中尤其感谢一些大佬的博客贴子，从中学习到了很多。本文将从基于我们编译的Android 6.0，从Xposed源码编译到Xposed源码定制，详细记录全过程。此实验分为两部分：本文Xposed源码编译和下文Xposed源码定制</p>
+<span id="more"></span>
+<p><strong>致谢：</strong></p>
+<p>首先感谢世界美景大佬的<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-255836.htm">定制Xposed框架</a>，从里面学习到对Xposed框架特征的修改，但是由于个人水平有限，大佬的贴子不够详细，不能完整复现，经过搜索发现肉丝大佬的基于此的两篇详细的贴子讲解：<a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/c97zoTxRrEeYLvD8YwIUVQ">来自高纬的对抗：魔改XPOSED过框架检测(上)</a>和<a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/YAMCrQSi0LFJGNIwB9qHDA">来自高纬的对抗：魔改XPOSED过框架检测(下)</a>，本文的Xposed定制详细参考了大佬的贴子，一些bug也是从中得到了解决，而Xposed编译则参考博客：<a target="_blank" rel="noopener" href="https://www.jianshu.com/p/6471bab49cb1">xposed源码编译与集成</a>，关于Xposed安装以及问题解决则参考：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-264160.htm">学习篇-xposed框架及高版本替代方案</a></p>
+<h2 id="二、Xposed源码编译"><a href="#二、Xposed源码编译" class="headerlink" title="二、Xposed源码编译"></a>二、Xposed源码编译</h2><h3 id="1-实验准备"><a href="#1-实验准备" class="headerlink" title="1.实验准备"></a>1.实验准备</h3><p>Xposed源码编译的过程中，我们需要详细的了解Xposed中不同模块对应的版本以及适配的Android 版本情况，这样能够帮助我们减少错误，本文实验的环境搭建为：</p>
+<table>
+<thead>
+<tr>
+<th><strong>实验平台：</strong></th>
+<th><strong>Ubuntu 16.0.4  (运行内存4GB+CPU 4+磁盘300G)</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Android源码：</strong></td>
+<td><strong>android-6.0.1_r1</strong></td>
+</tr>
+<tr>
+<td><strong>实验手机：</strong></td>
+<td><strong>Google nexus5</strong></td>
+</tr>
+<tr>
+<td><strong>XposedBridge：</strong></td>
+<td><strong>XposedBridge-art</strong></td>
+</tr>
+<tr>
+<td><strong>XposedInstaller:</strong></td>
+<td><strong>3.1.5</strong></td>
+</tr>
+</tbody></table>
+<h3 id="2-编译流程"><a href="#2-编译流程" class="headerlink" title="2.编译流程"></a>2.编译流程</h3><p>我们在学习Xposed的源码编译之前，我们先了解Xposed个各个模块的含义，详细参考官网：<a target="_blank" rel="noopener" href="https://github.com/rovo89">Xposed官网</a></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/2.png" alt="image-20211001164001995"></p>
+<p>各个模块的含义（这里参考上文肉丝大佬博客（1））：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">XposedInstaller：下载安装Xposed.zip刷机包、下载安装和管理模块</span><br><span class="line">XposedBridge：位于Java层的API提供者，模块调用功能时首先就是到这里，然后再“转发”到Native方法</span><br><span class="line">Xposed：位于Native层的Xposed实际实现，实现方法替换的实际逻辑等功能，主要是在app_process上进行的二次开发</span><br><span class="line">android_art：在原版art上进行的二次开发，目录及文件基本上与原版art相同，稍加修改提供对Xposed的支持</span><br><span class="line">XposedTools:XposedInstaller下载的那个刷机zip包，就是用XposedTools编译打包出来的</span><br></pre></td></tr></table></figure>
+
+<p>我们了解Xposed的各个模块的作用，接着了解一下Xposed框架初始化的工作原理：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/3.png" alt="image-20211001165501914"></p>
+<p>Xposed源码编译的流程可以参考下图：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/1.png" alt="image-20211001163008900"></p>
+<h3 id="3-XposedBridge"><a href="#3-XposedBridge" class="headerlink" title="3.XposedBridge"></a>3.XposedBridge</h3><h4 id="（1）源码下载"><a href="#（1）源码下载" class="headerlink" title="（1）源码下载"></a>（1）源码下载</h4><p>我们从官网上下载<a target="_blank" rel="noopener" href="https://github.com/rovo89/XposedBridge/tree/art">XposedBridge</a>，这里我们最终下载的是Xposed_art</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">git clone https:<span class="comment">//github.com/rovo89/XposedBridge.git</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/4.png" alt="image-20211001163008900"></p>
+<h4 id="（2）编译生成XposedBridge-jar"><a href="#（2）编译生成XposedBridge-jar" class="headerlink" title="（2）编译生成XposedBridge.jar"></a>（2）编译生成XposedBridge.jar</h4><p>我们在生成XposedBridge.jar的过程中有两种方式：mmm编译和Android Studio编译（这里优先推荐使用AndroidStudio编译）</p>
+<h5 id="lt-1-gt-mmm编译"><a href="#lt-1-gt-mmm编译" class="headerlink" title="&lt;1&gt;mmm编译"></a>&lt;1&gt;mmm编译</h5><p>首先我们需要在XposedBridge工程中编写Android.mk文件</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Android.mk是Android提供的一种makefile文件，用来指定诸如编译生成so库名、引用的头文件目录、需要编译的.c/.cpp文件和.a静态库文件等。编写android.mk文件，将编译需要的源代码，编译生成的结果形式等信息告知ndk build编译系统。Android.mk文件内容如下所示。</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">LOCAL_PATH:= $(call my-dir)</span><br><span class="line">include $(CLEAR_VARS)</span><br><span class="line">LOCAL_DEX_PREOPT = <span class="literal">false</span></span><br><span class="line">LOCAL_MODULE := XposedBridge</span><br><span class="line"></span><br><span class="line">LOCAL_SRC_FILES := \</span><br><span class="line">     $(call all-java-files-under, src) \</span><br><span class="line">     $(call all-java-files-under, lib/apache-commons-lang/external) \</span><br><span class="line">     $(call all-java-files-under, hiddenapistubs/src)</span><br><span class="line"></span><br><span class="line">include $(BUILD_JAVA_LIBRARY)</span><br><span class="line"></span><br><span class="line">$(LOCAL_INTERMEDIA_TARGETS): PRIVATE_EXTRA_JAR_ARGS := -C <span class="string">&quot;$(LOCAL_PATH)&quot;</span> \</span><br><span class="line">assets -C <span class="string">&quot;#(LOCAL_PATH)&quot;</span> NOTICE.txt</span><br><span class="line"></span><br><span class="line">include $(call all-makefiles-under, $(LOCAL_PATH))</span><br></pre></td></tr></table></figure>
+
+<p>这里我们需要注意版本，针对不同版本的XposedBridge，我们需要修改LOCAL_SRC_FILES中的文件选项，关于Android.mk的文件介绍，大家可以参考官网地址：<a target="_blank" rel="noopener" href="https://developer.android.com/ndk/guides/android_mk?hl=zh-cn">Android.mk</a></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/5.png" alt="image-20211001163008900"></p>
+<p>我们将XposedBridge文件夹放在Android源码目录下</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/6.png" alt="image-20211001163008900"></p>
+<p>然后我们使用mmm针对模块编译：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">##初始化环境</span><br><span class="line">source build/envsetup.sh</span><br><span class="line">##选择设备</span><br><span class="line">lunch <span class="number">19</span></span><br><span class="line">##编译</span><br><span class="line">mmm /home/tom/SourceCode/android-<span class="number">6.0</span>.1_r1/XposedBridge/ </span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/7.png" alt="image-20211001163008900"></p>
+<p>我们就可以在&#x2F;out&#x2F;target&#x2F;product&#x2F;hammerhead&#x2F;system&#x2F;framework&#x2F;文件夹下看见生成的XposedBridge包</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/8.png" alt="image-20211001163008900"></p>
+<h5 id="lt-2-gt-android-Studio编译"><a href="#lt-2-gt-android-Studio编译" class="headerlink" title="&lt;2&gt;android Studio编译"></a>&lt;2&gt;android Studio编译</h5><p>我们先从官网上下载源码，然后我们直接用Android Studio打开</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/9.png" alt="image-20211001163008900"></p>
+<p>然后我们等待编译器默认配置，此时如果你的编译器没有安装sdk23，可能会报错</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/10.png" alt="image-20211001172232509"></p>
+<p>这里我们进入File→Settings→Android SDK→勾选Android 6.0(Marshmallow)→Apply→OK，就会开始下载Sources for Android 23</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/11.png" alt="image-20211001172401367"></p>
+<p>下载完成后，我们只需要将编译器重新关闭，再次打开即可</p>
+<p>其他的问题只需要按照编译器提示的缺失文件，点击安装，静静等待配置就可以了，详细的错误解决也可以参考肉丝的博客（一）</p>
+<p>然后我们点击<code>build下Make Project或Rebuild Project</code>就可以编译成功了，生成路径<code>build/outputs/apk/app-release-unsigned.apk</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/12.png" alt="image-20211001172401367"></p>
+<p>这里就编译生成不签名的apk，然后我们可以把apk重命名XposedBridge.jar</p>
+<p><strong>编译模块开发api.jar</strong></p>
+<p>如果我们需要提供给app调用的api，那么我们可以需要执行android studio的gradle project的other中的generateAPI选项，会在目录build&#x2F;api中生成apk.jar</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/13.png" alt="image-20211001172401367"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/14.png" alt="image-20211001173925091"></p>
+<p>这里的api-sources.jar和XposedBridge中的就是一样的</p>
+<p>我们在这里就可以获得XposedBridge.jar和api.jar</p>
+<h4 id="（3）路径存放"><a href="#（3）路径存放" class="headerlink" title="（3）路径存放"></a>（3）路径存放</h4><p>我们android studio产生的XposedBridge.jar就可以放置在&#x2F;out&#x2F;target&#x2F;product&#x2F;hammerhead&#x2F;system&#x2F;framework&#x2F;文件夹下，而mmm编译的自动存防在该路径下，就不需要管</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/8.png" alt="image-20211001163008900"></p>
+<h3 id="4-android-art和Xposed"><a href="#4-android-art和Xposed" class="headerlink" title="4.android_art和Xposed"></a>4.android_art和Xposed</h3><h4 id="（1）源码下载-1"><a href="#（1）源码下载-1" class="headerlink" title="（1）源码下载"></a>（1）源码下载</h4><p>我们从Xposed官网下载<code>android_art</code>和<code>Xposed</code>源码，我们这里是android6.0，因此下载Xposed_sdk23，参考地址：<a target="_blank" rel="noopener" href="https://github.com/rovo89">Xposed官网地址</a></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">xposed文件夹包括xposed修改之后的app_process等应用程序和libxposed_*.so等库文件的源码；art文件夹主要包括xposed修改之后的art虚拟机的文件。</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/15.png" alt="image-20211001163008900"></p>
+<h4 id="（2）android-art"><a href="#（2）android-art" class="headerlink" title="（2）android_art"></a>（2）android_art</h4><p>我们将我们下载的android_art文件夹重命名为art文件夹，然后替换android源码下的art文件夹，这就相当于替换了android系统的虚拟机</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/16.png" alt="image-20211001163008900"></p>
+<h4 id="（3）xposed"><a href="#（3）xposed" class="headerlink" title="（3）xposed"></a>（3）xposed</h4><p>将下载的xposed文件夹移动到<code>/SourceCode/Android-6.0.1_r1/frameworks/base/cmds/</code>文件夹下</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/17.png" alt="image-20211001163008900"></p>
+<p>注：这里我们注意下载的Xposed的首字母为大写，我们需要改成xposed，不然后面会报错，具体我们在错误专区中介绍</p>
+<h3 id="5-XposedTools"><a href="#5-XposedTools" class="headerlink" title="5.XposedTools"></a>5.XposedTools</h3><h4 id="（1）源码下载-2"><a href="#（1）源码下载-2" class="headerlink" title="（1）源码下载"></a>（1）源码下载</h4><p>我们从官网上下载XposedTools，官网地址：<a target="_blank" rel="noopener" href="https://github.com/rovo89/XposedTools">XposedTools</a></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/18.png" alt="image-20211001163008900"></p>
+<h4 id="（2）build-conf文件配置"><a href="#（2）build-conf文件配置" class="headerlink" title="（2）build.conf文件配置"></a>（2）build.conf文件配置</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">	build.conf文件是一个配置文件，会被build.pl读取使用。build文件中主要定义了编译xposed的结果的存放路径，android源码的路径，还有一些版本信息之类的值。</span><br><span class="line">将下载的zip包解压，在文件夹下创建build.conf文件</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[General]</span><br><span class="line">outdir = /home/tom/SourceCode/XposedBridge</span><br><span class="line">[Build]</span><br><span class="line">version = 65(custom build by author )</span><br><span class="line">makeflags = -j4</span><br><span class="line">[AospDir]</span><br><span class="line">23 =/home/tom/SourceCode/android-6.0.1_r1</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">outdir指向的路径是xposed编译之后生成的文件的存放路径。</span><br><span class="line">version的值和后边的参数是自己设置的。编译之后会写入到xposed.prop文件中，后面会显示在我们的XposedInstaller中</span><br><span class="line">makeflags是设置在后边编译过程中使用的线程数。</span><br><span class="line">AospDir指向的路径是android源码存放的路径，前边的值是源码对应的SDK的版本号。这里我指向的是android6<span class="number">.0</span><span class="number">.1</span>的源码，对应的android sdk的版本是<span class="number">23</span>。</span><br></pre></td></tr></table></figure>
+
+<p>我们还需要在outdir目录下创建一个java文件夹，然后将上面生成的XposedBridge.jar放到java文件夹下</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/19.png" alt="image-20211001163008900"></p>
+<h4 id="（3）build-pl编译Xposed源码"><a href="#（3）build-pl编译Xposed源码" class="headerlink" title="（3）build.pl编译Xposed源码"></a>（3）build.pl编译Xposed源码</h4><p>build.pl文件在xposed tools文件夹下，在文件中有对build.pl文件的参数的设置规则等信息</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/20.png" alt="image-20211001163008900"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">从上图可以看到build.pl主要可以完成的工作有四个，分别是编译生成xposed的可执行程序和库文件，将编译之后的文件拷贝到配置文件指定的输出路径下，创建xposed.prop文件，创建flashable ZIP文件。在参数中可以使用-t 针对指定的目标进行创建,在xposed tools目录下运行</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./build.pl -t arm:23</span><br></pre></td></tr></table></figure>
+
+<p>然后报错，这个是我们缺失依赖包</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/21.png" alt="image-20211001163008900"></p>
+<p>  build arm files for SDK23(对应的是Android6.0系统)  在执行过程中，可能会提示缺少一些依赖包，例如可能会缺少Config::IniFiles，使用apt-cache search  Config::IniFiles搜索，安装缺少的包即可</p>
+<p><strong>安装Config::IniFiles</strong></p>
+<p>先安装perl环境</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">apt-cache search Config::IniFiles</span><br><span class="line">sudo apt install libconfig-inifiles-perl</span><br></pre></td></tr></table></figure>
+
+<p>然后我们再安装Config::IniFiles</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo perl -MCPAN -e <span class="string">&#x27;install Config::IniFiles&#x27;</span></span><br><span class="line">sudo perl -MCPAN -e <span class="string">&#x27;install File::Tail&#x27;</span></span><br><span class="line">sudo perl -MCPAN -e <span class="string">&#x27;install File::ReadBackwards&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>这里我们就安装了缺失的环境，然后我们再次编译</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/22.png" alt="image-20211001163008900"></p>
+<h4 id="（4）生成编译结果"><a href="#（4）生成编译结果" class="headerlink" title="（4）生成编译结果"></a>（4）生成编译结果</h4><p>build.pl -t运行结束之后，会将生成的xposed的可执行程序和so库等文件放入到build.conf配置文件中指定的输出目录下。包括lib文件夹下的五个so库和bin文件加下的四个可执行程序以及一个配置文件。</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/23.png" alt="image-20211001163008900"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/24.png" alt="image-20211001163008900"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/25.png" alt="image-20211001163008900"></p>
+<p>我们还可以发现sdk23下生成xposed-v65-sdk23-arm-custom-build-by-author.zip，这就是我们下载的xposed压缩文件</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/26.png" alt="image-20211001191539395"></p>
+<p>我们可以看一下Xposed框架压缩文件与SDK的匹配关系，下载的参考网址：<a target="_blank" rel="noopener" href="https://dl-xda.xposed.info/framework/">Xposedsdk</a>（图片来源：<a target="_blank" rel="noopener" href="https://bbs.pediy.com/thread-264160.htm">学习篇-xposed框架及高版本替代方案</a>）</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/36.png" alt="image-20211001195218356"></p>
+<h3 id="6-XposedInstaller"><a href="#6-XposedInstaller" class="headerlink" title="6.XposedInstaller"></a>6.XposedInstaller</h3><h4 id="（1）源码下载-3"><a href="#（1）源码下载-3" class="headerlink" title="（1）源码下载"></a>（1）源码下载</h4><p>我们从官网上下载XposedInstaller，官网地址：<a target="_blank" rel="noopener" href="https://github.com/rovo89/XposedInstaller">XposedInstaller</a></p>
+<h4 id="（2）源码编译"><a href="#（2）源码编译" class="headerlink" title="（2）源码编译"></a>（2）源码编译</h4><p>我们直接通过Android Studio打开源码，进行环境配置，然后开始编译，生成XposedInstaller.apk即可</p>
+<h3 id="7-源码编译"><a href="#7-源码编译" class="headerlink" title="7.源码编译"></a>7.源码编译</h3><h4 id="（1）替换"><a href="#（1）替换" class="headerlink" title="（1）替换"></a>（1）替换</h4><p>用编译生成的bin文件夹中文件替换&#x2F;out&#x2F;target&#x2F;product&#x2F;hammerhead&#x2F;system&#x2F;文件夹下的bin文件夹中文件，进入bin文件夹下</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cp /home/tom/SourceCode/XposedBridge/sdk23/arm/files/system/bin/* .</span><br></pre></td></tr></table></figure>
+
+<p>注意的是用xposed编译生成的app_process32_xposed替换system&#x2F;bin文件夹下的app_process32</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/27.png" alt="image-20211001192053735"></p>
+<p>用编译生成的lib文件夹中文件替换&#x2F;out&#x2F;target&#x2F;product&#x2F;hammerhead&#x2F;system&#x2F;文件夹下的lib文件夹中文件，我们进入lib文件夹下</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cp /home/tom/SourceCode/XposedBridge/sdk23/arm/files/system/lib/* .</span><br></pre></td></tr></table></figure>
+
+<p>在&#x2F;out&#x2F;target&#x2F;product&#x2F;hammerhead&#x2F;system&#x2F;文件夹下加入编译生成的xposed.prop，我们进入system文件夹下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cp /home/tom/SourceCode/XposedBridge/sdk23/arm/files/system/xppsed.prop  .</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/28.png" alt="image-20211001192053735"></p>
+<h4 id="（2）重新生成镜像文件"><a href="#（2）重新生成镜像文件" class="headerlink" title="（2）重新生成镜像文件"></a>（2）重新生成镜像文件</h4><p>我们进入android源码的根目录下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">source build/envsetup.sh</span><br><span class="line">lunch 19</span><br><span class="line">make snod  //make snod命令的作用是重新生成镜像文件system.img</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/29.png" alt="image-20211001192519764"></p>
+<h4 id="（3）刷机"><a href="#（3）刷机" class="headerlink" title="（3）刷机"></a>（3）刷机</h4><p>然后我们只需要将system.img镜像刷入即可</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">fastboot flash system system.img</span><br></pre></td></tr></table></figure>
+
+<p>然后我们需要获取root权限</p>
+<p>我们先刷入twrp:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">fastboot flash recovery twrp-2.8.7.1-hammerhead.img </span><br></pre></td></tr></table></figure>
+
+<p>然后我们将SuperSU推送到手机中</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb push SR5-SuperSU-v2.82-SR5-20171001224502.zip /sdcard</span><br></pre></td></tr></table></figure>
+
+<p>然后我们进入recovery模式：</p>
+<p>将SuperSU刷入，直接通过进行刷入即可，这样手机就获得root权限了，然后重启手机</p>
+<h3 id="8-结果与测试"><a href="#8-结果与测试" class="headerlink" title="8.结果与测试"></a>8.结果与测试</h3><h4 id="（1）结果"><a href="#（1）结果" class="headerlink" title="（1）结果"></a>（1）结果</h4><p>我们打开手机，并输入命令抓取日志：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">adb logcat | grep -i xposed</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/30.png" alt="image-20211001192519764"></p>
+<p>这是我们还没有安装XposedInstall.apk，然后我们安装上XposedInstaller.apk，然后重启</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/32.png" alt="image-20211001192519764"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/31.png" alt="image-20211001192519764"></p>
+<p>我们就可以发现Xposed框架成功激活</p>
+<h4 id="（2）测试"><a href="#（2）测试" class="headerlink" title="（2）测试"></a>（2）测试</h4><p>我们导入模块来测试我们的Xposed框架是否能使用</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/33.png" alt="image-20211001192519764"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/34.png" alt="image-20211001192519764"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/35.png" alt="image-20211001192519764"></p>
+<p>经过测试我们编译的Xposed框架是可以正常使用的</p>
+<h3 id="9-错误解决"><a href="#9-错误解决" class="headerlink" title="9.错误解决"></a>9.错误解决</h3><h4 id="（1）错误1"><a href="#（1）错误1" class="headerlink" title="（1）错误1"></a>（1）错误1</h4><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/37.png" alt="image-20211001192519764"></p>
+<p>问题分析：</p>
+<p>这是在使用mmm直接编译模块时，Android.mk文件编写错误，导致没有打包<code>de.robv.android.xposed.XposedBridge</code>该类</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/38.png" alt="image-20211001192519764"></p>
+<p>问题解决：</p>
+<p>这里我们应该在Android.mk中注意编写导入文件，更加推荐使用AndroidStudio直接编译，这样出错概率较少</p>
+<h4 id="（2）错误2"><a href="#（2）错误2" class="headerlink" title="（2）错误2"></a>（2）错误2</h4><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/39.png" alt="image-20211001192519764"></p>
+<p>问题分析：</p>
+<p>这里是因为我们下载的Xposed首字母大写</p>
+<p>问题解决：</p>
+<p>我们需要注意大小写问题</p>
+<h4 id="（3）错误3"><a href="#（3）错误3" class="headerlink" title="（3）错误3"></a>（3）错误3</h4><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/code3/40.png" alt="image-20211001192519764"></p>
+<p>问题分析：</p>
+<p>这是由于XposedBridge版本和XposedInstaller版本不一致导致的，我们进入源码发现该XposedBridge中函数并不包含此类，我们需要选择更高版本的源码</p>
+<p>问题解决：</p>
+<p>此类问题注意XposedBridge和XposedInstaller版本不一致的问题，需要采用合适的Xposed版本源码</p>
+<h2 id="三、实验总结"><a href="#三、实验总结" class="headerlink" title="三、实验总结"></a>三、实验总结</h2><p>在Xposed源码编译过程中，出现了很多的问题，但是大部分问题通过查找对应的错误，分析源码基本都可以解决，其中很多问题大部分是由于你下载的XposedBridge源码和XposedInstaller源码不匹配引起的，而还有一部分原因是因为你生的XposedBridge.jar错误引起的，在我们激活Xposed框架时，我们最好使用<code>adb logcat | grep &quot;xposed&quot;</code>来观察运行的情况，很多错误的操作可能导致Xposed框架不能正常的激活，从而导致手机死机，启动不了，这个时候我们可以进入recovery模式，wipe清除数据，这里实际上是清除XposedInstaller.apk，使得xposed不会被激活，手机就可以正常的进入，但是我们还是要通过日志信息分析原因，只要找到问题，重新编译源码，我们就可以正常启动了</p>
+<p>实验所用的文件资料，后续都会上传到github上：<a target="_blank" rel="noopener" href="https://github.com/guoxuaa/Android-reverse/tree/main/Android%E6%BA%90%E7%A0%81%E5%AE%9A%E5%88%B6">github地址</a></p>
+<h2 id="四、参考文献"><a href="#四、参考文献" class="headerlink" title="四、参考文献"></a>四、参考文献</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">https:<span class="comment">//www.jianshu.com/p/6471bab49cb1</span></span><br><span class="line">https:<span class="comment">//juejin.cn/post/6844903711714574344</span></span><br><span class="line">https:<span class="comment">//juejin.cn/post/6844903709730668551</span></span><br><span class="line">https:<span class="comment">//v2as.com/article/490aeab6-c2e2-4e28-a341-457ede3d7711</span></span><br><span class="line">https:<span class="comment">//www.hellojava.com/a/78058.html</span></span><br><span class="line">https:<span class="comment">//flysands.github.io/blog/2017-12-25-%E7%BC%96%E8%AF%91xposed%E6%BA%90%E7%A0%81.html</span></span><br><span class="line">https:<span class="comment">//mp.weixin.qq.com/s/c97zoTxRrEeYLvD8YwIUVQ</span></span><br></pre></td></tr></table></figure>
+
+
+
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2022/12/04/code3/" title="Android源码定制（3）——Xposed源码编译详解">http://security-kitchen.com/2022/12/04/code3/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/" rel="tag"># 逆向技术</a>
+              <a href="/tags/Xposed/" rel="tag"># Xposed</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/04/code2/" rel="prev" title="Android源码定制（2）——Android10.0的编译流程">
+      <i class="fa fa-chevron-left"></i> Android源码定制（2）——Android10.0的编译流程
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/04/code4/" rel="next" title="Android源码定制（4）——Xposed源码定制">
+      Android源码定制（4）——Xposed源码定制 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80"><span class="nav-text">一、前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Xposed%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91"><span class="nav-text">二、Xposed源码编译</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-%E5%AE%9E%E9%AA%8C%E5%87%86%E5%A4%87"><span class="nav-text">1.实验准备</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E7%BC%96%E8%AF%91%E6%B5%81%E7%A8%8B"><span class="nav-text">2.编译流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-XposedBridge"><span class="nav-text">3.XposedBridge</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BA%90%E7%A0%81%E4%B8%8B%E8%BD%BD"><span class="nav-text">（1）源码下载</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E7%BC%96%E8%AF%91%E7%94%9F%E6%88%90XposedBridge-jar"><span class="nav-text">（2）编译生成XposedBridge.jar</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-1-gt-mmm%E7%BC%96%E8%AF%91"><span class="nav-text">&lt;1&gt;mmm编译</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#lt-2-gt-android-Studio%E7%BC%96%E8%AF%91"><span class="nav-text">&lt;2&gt;android Studio编译</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E8%B7%AF%E5%BE%84%E5%AD%98%E6%94%BE"><span class="nav-text">（3）路径存放</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-android-art%E5%92%8CXposed"><span class="nav-text">4.android_art和Xposed</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BA%90%E7%A0%81%E4%B8%8B%E8%BD%BD-1"><span class="nav-text">（1）源码下载</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89android-art"><span class="nav-text">（2）android_art</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89xposed"><span class="nav-text">（3）xposed</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-XposedTools"><span class="nav-text">5.XposedTools</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BA%90%E7%A0%81%E4%B8%8B%E8%BD%BD-2"><span class="nav-text">（1）源码下载</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89build-conf%E6%96%87%E4%BB%B6%E9%85%8D%E7%BD%AE"><span class="nav-text">（2）build.conf文件配置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89build-pl%E7%BC%96%E8%AF%91Xposed%E6%BA%90%E7%A0%81"><span class="nav-text">（3）build.pl编译Xposed源码</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%884%EF%BC%89%E7%94%9F%E6%88%90%E7%BC%96%E8%AF%91%E7%BB%93%E6%9E%9C"><span class="nav-text">（4）生成编译结果</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-XposedInstaller"><span class="nav-text">6.XposedInstaller</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%BA%90%E7%A0%81%E4%B8%8B%E8%BD%BD-3"><span class="nav-text">（1）源码下载</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91"><span class="nav-text">（2）源码编译</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-%E6%BA%90%E7%A0%81%E7%BC%96%E8%AF%91"><span class="nav-text">7.源码编译</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E6%9B%BF%E6%8D%A2"><span class="nav-text">（1）替换</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E9%87%8D%E6%96%B0%E7%94%9F%E6%88%90%E9%95%9C%E5%83%8F%E6%96%87%E4%BB%B6"><span class="nav-text">（2）重新生成镜像文件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E5%88%B7%E6%9C%BA"><span class="nav-text">（3）刷机</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-%E7%BB%93%E6%9E%9C%E4%B8%8E%E6%B5%8B%E8%AF%95"><span class="nav-text">8.结果与测试</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E7%BB%93%E6%9E%9C"><span class="nav-text">（1）结果</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E6%B5%8B%E8%AF%95"><span class="nav-text">（2）测试</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-%E9%94%99%E8%AF%AF%E8%A7%A3%E5%86%B3"><span class="nav-text">9.错误解决</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%881%EF%BC%89%E9%94%99%E8%AF%AF1"><span class="nav-text">（1）错误1</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%882%EF%BC%89%E9%94%99%E8%AF%AF2"><span class="nav-text">（2）错误2</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%EF%BC%883%EF%BC%89%E9%94%99%E8%AF%AF3"><span class="nav-text">（3）错误3</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E9%AA%8C%E6%80%BB%E7%BB%93"><span class="nav-text">三、实验总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="nav-text">四、参考文献</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

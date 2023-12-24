@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"security-kitchen.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"./public/search.json"};
+  </script>
+
+  <meta name="description" content="1.前言今天来分析一下自动脱壳机Youpk的源码，Youpk是一个可以解决整体壳、抽取壳的脱壳机，可以解决自解密型的抽取壳。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android加壳与脱壳（8）——Youpk脱壳机源码分析">
+<meta property="og:url" content="http://security-kitchen.com/2022/12/04/Packer8/index.html">
+<meta property="og:site_name" content="欢迎来到安全后厨！">
+<meta property="og:description" content="1.前言今天来分析一下自动脱壳机Youpk的源码，Youpk是一个可以解决整体壳、抽取壳的脱壳机，可以解决自解密型的抽取壳。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/1.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/2.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/3.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/4.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/5.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/6.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/7.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/8.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/9.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/10.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/11.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/12.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/13.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/14.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/15.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/16.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/17.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/18.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/19.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/20.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/21.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/22.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/23.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/24.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/25.png">
+<meta property="og:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/26.png">
+<meta property="article:published_time" content="2022-12-03T16:00:00.000Z">
+<meta property="article:modified_time" content="2023-12-23T09:13:44.107Z">
+<meta property="article:author" content="安全后厨团队">
+<meta property="article:tag" content="逆向技术">
+<meta property="article:tag" content="加壳与脱壳">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/1.png">
+
+<link rel="canonical" href="http://security-kitchen.com/2022/12/04/Packer8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>Android加壳与脱壳（8）——Youpk脱壳机源码分析 | 欢迎来到安全后厨！</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="欢迎来到安全后厨！" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+	<div class="headband"></div>
+    <a target="_blank" rel="noopener" href="https://github.com/WindXaa?tab=repositories" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">欢迎来到安全后厨！</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-resources">
+
+    <a href="/resources/" rel="section"><i class="fa fa-download fa-fw"></i>资源</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://security-kitchen.com/2022/12/04/Packer8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="安全后厨团队">
+      <meta itemprop="description" content="选择有时候比努力更重要">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="欢迎来到安全后厨！">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android加壳与脱壳（8）——Youpk脱壳机源码分析
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-12-04 00:00:00" itemprop="dateCreated datePublished" datetime="2022-12-04T00:00:00+08:00">2022-12-04</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2023-12-23 17:13:44" itemprop="dateModified" datetime="2023-12-23T17:13:44+08:00">2023-12-23</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Android%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/" itemprop="url" rel="index"><span itemprop="name">Android加壳与脱壳</span></a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="1-前言"><a href="#1-前言" class="headerlink" title="1.前言"></a>1.前言</h2><p>今天来分析一下自动脱壳机Youpk的源码，Youpk是一个可以解决整体壳、抽取壳的脱壳机，可以解决自解密型的抽取壳。</p>
+<span id="more"></span>
+
+<h2 id="2-源码分析"><a href="#2-源码分析" class="headerlink" title="2.源码分析"></a>2.源码分析</h2><h3 id="2-1-创建脱壳线程"><a href="#2-1-创建脱壳线程" class="headerlink" title="2.1 创建脱壳线程"></a>2.1 创建脱壳线程</h3><p><code>frameworks/base/core/java/android/app/ActivityThread.java</code></p>
+<p>函数：<code>handleBindApplication</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/1.png" alt="image-20221117163521650"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/2.png" alt="image-20221117163700704"></p>
+<p>这里选择这个函数，是因为Android系统的执行流程，都要经过这个函数，且与FART的选择点有区别</p>
+<p><code>art/runtime/unpacker/unpacker.cc</code></p>
+<p>函数：<code>unpack</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/3.png" alt="image-20221117172452859"></p>
+<p>我们可以依次看见4个功能模块：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">（1）初始化</span><br><span class="line">（2）dump所有dex</span><br><span class="line">（3）主动调用所有方法</span><br><span class="line">（4）还原</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-初始化init"><a href="#2-2-初始化init" class="headerlink" title="2.2 初始化init()"></a>2.2 初始化init()</h3><p><code>unpacker/unpacker.cc</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/4.png" alt="image-20221117184318818"></p>
+<p>在<code>data/data/process</code>目录下新建三个文件夹<code>dex</code>、<code>method</code>、<code>unpacker.json</code></p>
+<p><code>getDexFiles：</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/5.png" alt="image-20221117184846884"></p>
+<p>内存中dump DEX，DEX文件在art虚拟机中使用DexFile对象表示, 而ClassLinker中引用了这些对象, 因此可以采用从ClassLinker中遍历DexFile对象并dump的方式来获取</p>
+<p>注意：因为从内存中dump，所以无法针对动态加载的壳进行解决，因为这类壳需要完成类加载器的修正，而youpk就没有完成该部分的工作</p>
+<p>另外, 为了避免dex做任何形式的优化影响dump下来的dex文件, 在dex2oat中设置 CompilerFilter 为仅验证</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">//dex2oat.cc</span><br><span class="line">compiler_options_-&gt;SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);</span><br></pre></td></tr></table></figure>
+
+<p><code>getAppClassLoader:</code></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/6.png" alt="image-20221117185448621"></p>
+<p>通过反射获得当前的类加载器</p>
+<h3 id="2-3-dump所有dex-DumpAllDexs"><a href="#2-3-dump所有dex-DumpAllDexs" class="headerlink" title="2.3 dump所有dex DumpAllDexs()"></a>2.3 dump所有dex DumpAllDexs()</h3><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/7.png" alt="image-20221117185652660"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">代码解析：</span><br><span class="line">（1）对dexs文件进行Dump，根据begin和大小</span><br><span class="line">（2）并且对抗了dex魔术字段被抹除的形式  可借鉴</span><br><span class="line">（3）成功的保存  可改进</span><br></pre></td></tr></table></figure>
+
+<p>功能：对Dexfile的文件进行Dump</p>
+<h3 id="2-4-主动调用链invokeAllMethods"><a href="#2-4-主动调用链invokeAllMethods" class="headerlink" title="2.4 主动调用链invokeAllMethods()"></a>2.4 主动调用链invokeAllMethods()</h3><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/8.png" alt="image-20221117190319146"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">代码解析：</span><br><span class="line">（1）获得Dex的位置、dump路径、类大小</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/9.png" alt="image-20221117192614372"></p>
+<p>如果路径、位置、大小都相等，则说明是处理过后的dex</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/10.png" alt="image-20221117192816317"></p>
+<p>这里对<code>init</code>进行处理</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/11.png" alt="image-20221118101348194"></p>
+<p>将一些dex的信息保存到Json中</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/12.png" alt="image-20221118101716662"></p>
+<p>遍历dex的所有ClassDef</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/13.png" alt="image-20221121101508613"></p>
+<p>读取一些函数的状态</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/14.png" alt="image-20221121101628110"></p>
+<p>对函数初始化进行处理，对未经过初始化的函数进行初始化</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/15.png" alt="image-20221121103024584"></p>
+<p>开启虚假的调用</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/16.png" alt="image-20221121103144283"></p>
+<p>对方法进行遍历，对非抽象方法或非静态方法进行模拟调用</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/17.png" alt="image-20221121103303751"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/18.png" alt="image-20221121103337569"></p>
+<p>关闭模拟调用开关，然后将状态进行修改</p>
+<h3 id="2-5-系统源码"><a href="#2-5-系统源码" class="headerlink" title="2.5 系统源码"></a>2.5 系统源码</h3><p><code>artmethod.cc</code></p>
+<p>Invoke()函数：修改</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/19.png" alt="image-20221121103810915"></p>
+<p>如果是主动调用，并且不是native方法就强制走解释器</p>
+<p>如果是主动调用并且是native方法则不执行</p>
+<p><code>interpreter.cc</code></p>
+<p>EnterInterpreterFromInvoke()函数</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receiver,</span><br><span class="line">                                uint32_t* args, JValue* result,</span><br><span class="line">                                bool stay_in_interpreter) &#123;</span><br></pre></td></tr></table></figure>
+
+<p>在这里面函数youpk并未进行处理</p>
+<p>但是这里youpk强制修改了解释器：</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/20.png" alt="image-20221121104329362"></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/21.png" alt="image-20221121104422252"></p>
+<p>Execute()函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> JValue <span class="title function_">Execute</span><span class="params">(</span></span><br><span class="line"><span class="params">    Thread* self,</span></span><br><span class="line"><span class="params">    <span class="type">const</span> DexFile::CodeItem* code_item,</span></span><br><span class="line"><span class="params">    ShadowFrame&amp; shadow_frame,</span></span><br><span class="line"><span class="params">    JValue result_register,</span></span><br><span class="line"><span class="params">    <span class="type">bool</span> stay_in_interpreter = <span class="literal">false</span>)</span> <span class="title function_">SHARED_REQUIRES</span><span class="params">(Locks::mutator_lock_)</span> &#123;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/22.png"></p>
+<p><code>interpreter_switch_impl.cc</code></p>
+<p><strong>ExecuteSwitchImpl()函数：修改</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">JValue <span class="title function_">ExecuteSwitchImpl</span><span class="params">(Thread* self, <span class="type">const</span> DexFile::CodeItem* code_item,</span></span><br><span class="line"><span class="params">                         ShadowFrame&amp; shadow_frame, JValue result_register,</span></span><br><span class="line"><span class="params">                         <span class="type">bool</span> interpret_one_instruction)</span> &#123;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/23.png" alt="image-20221121105254503"></p>
+<p>可以发现当程序进入Switch进行翻译后，翻译每条指令之前，都会执行PREAMBLE()方法，而Youpk就对这里进行了修改，这里与FARTExt区别的地方，就是这里是利用了解析器的判断：</p>
+<p><strong>PREAMBLE()函数：修改</strong></p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/24.png" alt="image-20221121105530110"></p>
+<p>在程序翻译之前都要使用<code>beforeInstructionExecute</code>进行判断，这里就是Youpk深度调用链的地方，处理（NOP、Goto）等壳的地方，如果已经dump了就直接返回，这里程序结束，这里可以进行改进</p>
+<p><code>unpacker.cc</code></p>
+<p><strong>beforeInstructionExecute()函数：修改</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//继续解释执行返回false, dump完成返回true</span></span><br><span class="line"><span class="type">bool</span> <span class="title function_">Unpacker::beforeInstructionExecute</span><span class="params">(Thread *self, ArtMethod *method, <span class="type">uint32_t</span> dex_pc, <span class="type">int</span> inst_count)</span> &#123;</span><br><span class="line">  <span class="keyword">if</span> (Unpacker::isFakeInvoke(self, method)) &#123;</span><br><span class="line">    <span class="type">const</span> <span class="type">uint16_t</span>* <span class="type">const</span> insns = method-&gt;GetCodeItem()-&gt;insns_;</span><br><span class="line">    <span class="type">const</span> Instruction* inst = Instruction::At(insns + dex_pc);</span><br><span class="line">    <span class="type">uint16_t</span> inst_data = inst-&gt;Fetch16(<span class="number">0</span>);</span><br><span class="line">    Instruction::Code opcode = inst-&gt;Opcode(inst_data);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//对于一般的方法抽取(非ijiami, najia), 直接在第一条指令处dump即可</span></span><br><span class="line">    <span class="keyword">if</span> (inst_count == <span class="number">0</span> &amp;&amp; opcode != Instruction::GOTO &amp;&amp; opcode != Instruction::GOTO_16 &amp;&amp; opcode != Instruction::GOTO_32) &#123;</span><br><span class="line">      Unpacker::dumpMethod(method);</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//ijiami, najia的特征为: goto: goto_decrypt; nop; ... ; return; const vx, n; invoke-static xxx; goto: goto_origin;</span></span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (inst_count == <span class="number">0</span> &amp;&amp; opcode &gt;= Instruction::GOTO &amp;&amp; opcode &lt;= Instruction::GOTO_32) &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (inst_count == <span class="number">1</span> &amp;&amp; opcode &gt;= Instruction::CONST_4 &amp;&amp; opcode &lt;= Instruction::CONST_WIDE_HIGH16) &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (inst_count == <span class="number">2</span> &amp;&amp; (opcode == Instruction::INVOKE_STATIC || opcode == Instruction::INVOKE_STATIC_RANGE)) &#123;</span><br><span class="line">      <span class="comment">//让这条指令真正的执行</span></span><br><span class="line">      Unpacker::disableFakeInvoke();</span><br><span class="line">      Unpacker::enableRealInvoke();</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (inst_count == <span class="number">3</span>) &#123;</span><br><span class="line">      <span class="keyword">if</span> (opcode &gt;= Instruction::GOTO &amp;&amp; opcode &lt;= Instruction::GOTO_32) &#123;</span><br><span class="line">        <span class="comment">//写入时将第一条GOTO用nop填充</span></span><br><span class="line">        <span class="type">const</span> Instruction* inst_first = Instruction::At(insns);</span><br><span class="line">        Instruction::Code first_opcode = inst_first-&gt;Opcode(inst-&gt;Fetch16(<span class="number">0</span>));</span><br><span class="line">        CHECK(first_opcode &gt;= Instruction::GOTO &amp;&amp; first_opcode &lt;= Instruction::GOTO_32);</span><br><span class="line">        ULOGD(<span class="string">&quot;found najia/ijiami %s&quot;</span>, PrettyMethod(method).c_str());</span><br><span class="line">        <span class="keyword">switch</span> (first_opcode)</span><br><span class="line">        &#123;</span><br><span class="line">        <span class="keyword">case</span> Instruction::GOTO:</span><br><span class="line">          Unpacker::dumpMethod(method, <span class="number">2</span>);</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> Instruction::GOTO_16:</span><br><span class="line">          Unpacker::dumpMethod(method, <span class="number">4</span>);</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> Instruction::GOTO_32:</span><br><span class="line">          Unpacker::dumpMethod(method, <span class="number">8</span>);</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">default</span>:</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        Unpacker::dumpMethod(method);</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    Unpacker::dumpMethod(method);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">（1）对于一般的方法，直接进行Dump，然后返回ture，不需要继续运行</span><br><span class="line">（2）对于特殊类型的壳，返回false，让其真正的运行起来</span><br><span class="line">（3）运行过INVOKE_STATIC_RANGE，需要将程序真正的执行，然后再判断GOTO进行Dump</span><br></pre></td></tr></table></figure>
+
+<p><strong>dumpMethod()函数：</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">Unpacker::dumpMethod</span><span class="params">(ArtMethod *method, <span class="type">int</span> nop_size)</span> &#123;</span><br><span class="line">  <span class="built_in">std</span>::<span class="built_in">string</span> dump_path = Unpacker::getMethodDumpPath(method);</span><br><span class="line">  <span class="type">int</span> fd = <span class="number">-1</span>;</span><br><span class="line">  <span class="keyword">if</span> (Unpacker_method_fds_.find(dump_path) != Unpacker_method_fds_.end()) &#123;</span><br><span class="line">    fd = Unpacker_method_fds_[dump_path];</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">else</span> &#123;</span><br><span class="line">    fd = open(dump_path.c_str(), O_RDWR | O_CREAT | O_APPEND, <span class="number">0777</span>);</span><br><span class="line">    <span class="keyword">if</span> (fd == <span class="number">-1</span>) &#123;</span><br><span class="line">      ULOGE(<span class="string">&quot;open %s error: %s&quot;</span>, dump_path.c_str(), strerror(errno));</span><br><span class="line">      <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    Unpacker_method_fds_[dump_path] = fd;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="type">uint32_t</span> index = method-&gt;GetDexMethodIndex();</span><br><span class="line">  <span class="built_in">std</span>::<span class="built_in">string</span> str_name = PrettyMethod(method);</span><br><span class="line">  <span class="type">const</span> <span class="type">char</span>* name = str_name.c_str();</span><br><span class="line">  <span class="type">const</span> DexFile::CodeItem* code_item = method-&gt;GetCodeItem();</span><br><span class="line">  <span class="type">uint32_t</span> code_item_size = (<span class="type">uint32_t</span>)Unpacker::getCodeItemSize(method);</span><br><span class="line"></span><br><span class="line">  <span class="type">size_t</span> total_size = <span class="number">4</span> + <span class="built_in">strlen</span>(name) + <span class="number">1</span> + <span class="number">4</span> + code_item_size;</span><br><span class="line">  <span class="built_in">std</span>::<span class="built_in">vector</span>&lt;<span class="type">uint8_t</span>&gt; <span class="title function_">data</span><span class="params">(total_size)</span>;</span><br><span class="line">  <span class="type">uint8_t</span>* buf = data.data();</span><br><span class="line">  <span class="built_in">memcpy</span>(buf, &amp;index, <span class="number">4</span>);</span><br><span class="line">  buf += <span class="number">4</span>;</span><br><span class="line">  <span class="built_in">memcpy</span>(buf, name, <span class="built_in">strlen</span>(name) + <span class="number">1</span>);</span><br><span class="line">  buf += <span class="built_in">strlen</span>(name) + <span class="number">1</span>;</span><br><span class="line">  <span class="built_in">memcpy</span>(buf, &amp;code_item_size, <span class="number">4</span>);</span><br><span class="line">  buf += <span class="number">4</span>;</span><br><span class="line">  <span class="built_in">memcpy</span>(buf, code_item, code_item_size);</span><br><span class="line">  <span class="keyword">if</span> (nop_size != <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="built_in">memset</span>(buf + offsetof(DexFile::CodeItem, insns_), <span class="number">0</span>, nop_size);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="type">ssize_t</span> written_size = write(fd, data.data(), total_size);</span><br><span class="line">  <span class="keyword">if</span> (written_size &gt; (<span class="type">ssize_t</span>)total_size) &#123;</span><br><span class="line">    ULOGW(<span class="string">&quot;write %s in %s %zd/%zu error: %s&quot;</span>, PrettyMethod(method).c_str(), dump_path.c_str(), written_size, total_size, strerror(errno));</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里面进行了dex的重构，然后直接进行dump</p>
+<p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/25.png" alt="image-20221121111506337"></p>
+<p>switch解释完，这里再进行一次判断</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">bool</span> <span class="title function_">Unpacker::afterInstructionExecute</span><span class="params">(Thread *self, ArtMethod *method, <span class="type">uint32_t</span> dex_pc, <span class="type">int</span> inst_count)</span> &#123;</span><br><span class="line">  <span class="type">const</span> <span class="type">uint16_t</span>* <span class="type">const</span> insns = method-&gt;GetCodeItem()-&gt;insns_;</span><br><span class="line">  <span class="type">const</span> Instruction* inst = Instruction::At(insns + dex_pc);</span><br><span class="line">  <span class="type">uint16_t</span> inst_data = inst-&gt;Fetch16(<span class="number">0</span>);</span><br><span class="line">  Instruction::Code opcode = inst-&gt;Opcode(inst_data);</span><br><span class="line">  <span class="keyword">if</span> (inst_count == <span class="number">2</span> &amp;&amp; (opcode == Instruction::INVOKE_STATIC || opcode == Instruction::INVOKE_STATIC_RANGE) </span><br><span class="line">      &amp;&amp; Unpacker::isRealInvoke(self, method)) &#123;</span><br><span class="line">    Unpacker::enableFakeInvoke();</span><br><span class="line">    Unpacker::disableRealInvoke();</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里就看到每个指令都执行了PREAMBLE函数。然后每个指令执行完都执行了afterInstructionExecute这个函数。在这里就可以判断，如果执行完的指令是INVOKE_STATIC。就可以直接return结束掉函数执行了。</p>
+<p>整体通过enableFakeInvoke和disableRealInvoke来控制下一个指令执行的时候来进行退出函数</p>
+<h3 id="2-6-还原fini"><a href="#2-6-还原fini" class="headerlink" title="2.6 还原fini()"></a>2.6 还原fini()</h3><p><img src="https://pic-1307040378.cos.ap-chengdu.myqcloud.com/packer8/26.png" alt="image-20221121112325511"></p>
+<p>将虚拟执行和真实执行，以及json一些参数恢复到起始状态，到这里整个脱壳机的源码则分析完成</p>
+<h2 id="3-总结"><a href="#3-总结" class="headerlink" title="3.总结"></a>3.总结</h2><p>本文分析了抽取壳的自动脱壳机youpk的源码，为后续进一步学习加壳和脱壳做铺垫，相关资料存放知识星球和微信公众号。</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>安全后厨团队 |  微信公众号【安全后厨】
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://security-kitchen.com/2022/12/04/Packer8/" title="Android加壳与脱壳（8）——Youpk脱壳机源码分析">http://security-kitchen.com/2022/12/04/Packer8/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%80%86%E5%90%91%E6%8A%80%E6%9C%AF/" rel="tag"># 逆向技术</a>
+              <a href="/tags/%E5%8A%A0%E5%A3%B3%E4%B8%8E%E8%84%B1%E5%A3%B3/" rel="tag"># 加壳与脱壳</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/12/03/Packer1/" rel="prev" title="Android加壳与脱壳（1）——深入理解类加载器和动态加载">
+      <i class="fa fa-chevron-left"></i> Android加壳与脱壳（1）——深入理解类加载器和动态加载
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/12/04/Packer7/" rel="next" title="Android加壳与脱壳（7）——Fdex2源码解析和frida版本实现">
+      Android加壳与脱壳（7）——Fdex2源码解析和frida版本实现 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%89%8D%E8%A8%80"><span class="nav-text">1.前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90"><span class="nav-text">2.源码分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%88%9B%E5%BB%BA%E8%84%B1%E5%A3%B3%E7%BA%BF%E7%A8%8B"><span class="nav-text">2.1 创建脱壳线程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%88%9D%E5%A7%8B%E5%8C%96init"><span class="nav-text">2.2 初始化init()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-dump%E6%89%80%E6%9C%89dex-DumpAllDexs"><span class="nav-text">2.3 dump所有dex DumpAllDexs()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E4%B8%BB%E5%8A%A8%E8%B0%83%E7%94%A8%E9%93%BEinvokeAllMethods"><span class="nav-text">2.4 主动调用链invokeAllMethods()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-%E7%B3%BB%E7%BB%9F%E6%BA%90%E7%A0%81"><span class="nav-text">2.5 系统源码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-6-%E8%BF%98%E5%8E%9Ffini"><span class="nav-text">2.6 还原fini()</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%80%BB%E7%BB%93"><span class="nav-text">3.总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="安全后厨团队"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">安全后厨团队</p>
+  <div class="site-description" itemprop="description">选择有时候比努力更重要</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">8</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WindXaa" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WindXaa" rel="noopener" target="_blank"><i class="github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://bbs.pediy.com/user-home-905443.htm" title="看雪 → https:&#x2F;&#x2F;bbs.pediy.com&#x2F;user-home-905443.htm" rel="noopener" target="_blank"><i class="gratipay fa-fw"></i>看雪</a>
+      </span>
+  </div>
+
+
+
+      </div>
+	  
+	  <div class="wechat_OA">
+		<span><b>公众号</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website/weChat.jpg" alt="二维码">
+	  </div>
+	  <div class="wechat_OA">
+		<span><b>知识星球</b></span>
+		<br>
+		<!-- 这里添加你的二维码图片 -->
+		<img src="https://blog-1307040378.cos.ap-chengdu.myqcloud.com/blog-website%2Fstar.png" alt="知识星球">
+	  </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2022-12 – 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">安全后厨团队</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+<div class="theme-info">
+  <div class="powered-by"></div>
+  <span class="post-count">博客全站共184.3k字</span>
+</div>
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+    <span id="busuanzi_container_site_pv">总访问量<span id="busuanzi_value_site_pv"></span>次</span>
+    <span class="post-meta-divider">|</span>
+    <span id="busuanzi_container_site_uv">总访客数<span id="busuanzi_value_site_uv"></span>人</span>
+    <span class="post-meta-divider">|</span>
+<!-- 不蒜子计数初始值纠正 -->
+<script>
+$(document).ready(function() {
+
+    var int = setInterval(fixCount, 50);  // 50ms周期检测函数
+    var countOffset = 20000;  // 初始化首次数据
+
+    function fixCount() {            
+       if (document.getElementById("busuanzi_container_site_pv").style.display != "none")
+        {
+            $("#busuanzi_value_site_pv").html(parseInt($("#busuanzi_value_site_pv").html()) + countOffset); 
+            clearInterval(int);
+        }                  
+        if ($("#busuanzi_container_site_pv").css("display") != "none")
+        {
+            $("#busuanzi_value_site_uv").html(parseInt($("#busuanzi_value_site_uv").html()) + countOffset); // 加上初始数据 
+            clearInterval(int); // 停止检测
+        }  
+    }
+       	
+});
+</script> 
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
